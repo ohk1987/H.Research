@@ -8,13 +8,14 @@ import APATable from "@/components/results/APATable"
 
 interface MGAPanelProps {
   variables: string[]
+  surveyGroups?: { id: string; name: string }[]
   onRunAnalysis: (config: {
     group: string
     estimator: string
   }) => Promise<Record<string, unknown>>
 }
 
-export default function MGAPanel({ variables, onRunAnalysis }: MGAPanelProps) {
+export default function MGAPanel({ variables, surveyGroups, onRunAnalysis }: MGAPanelProps) {
   const [group, setGroup] = useState('')
   const [estimator, setEstimator] = useState('ML')
   const [running, setRunning] = useState(false)
@@ -59,7 +60,17 @@ export default function MGAPanel({ variables, onRunAnalysis }: MGAPanelProps) {
               onChange={(e) => setGroup(e.target.value)}
             >
               <option value="">선택...</option>
-              {variables.map((v) => <option key={v} value={v}>{v}</option>)}
+              {surveyGroups && surveyGroups.length > 0 && (
+                <optgroup label="설문 그룹">
+                  <option value="group_id">전체 그룹 (group_id)</option>
+                  {surveyGroups.map((g) => (
+                    <option key={g.id} value={`group_${g.name}`}>{g.name}</option>
+                  ))}
+                </optgroup>
+              )}
+              <optgroup label={surveyGroups && surveyGroups.length > 0 ? "데이터 변수" : ""}>
+                {variables.map((v) => <option key={v} value={v}>{v}</option>)}
+              </optgroup>
             </select>
           </label>
 

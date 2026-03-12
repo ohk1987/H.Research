@@ -17,7 +17,11 @@
       "Bash(cd \"D:/H.Research\" && npm install @xyflow/react @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities 2>&1)",
       "Bash(cd \"D:/H.Research\" && npm run lint 2>&1 && npm run build 2>&1)",
       "Bash(cd \"D:/H.Research\" && npm install docx file-saver @types/file-saver jspdf jspdf-autotable 2>&1)",
-      "Bash(cd D:/H.Research && npm run build 2>&1 | head -80)"
+      "Bash(cd D:/H.Research && npm run build 2>&1 | head -80)",
+      "Bash(cd D:/H.Research && npm install qrcode @types/qrcode recharts 2>&1 | tail -5)",
+      "Bash(cd D:/H.Research && npm run build 2>&1 | tail -50)",
+      "Bash(cd D:/H.Research && cp .env.local.example .env.local && cat .gitignore | grep -n \"env.local\")",
+      "Bash(cd D:/H.Research && rm -f .env.local.example && ls .env.local)"
     ]
   }
 }

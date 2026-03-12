@@ -126,3 +126,44 @@ export function buildModerationModel(
 
   return [measurement, paths, modComment].filter(Boolean).join('\n\n')
 }
+
+// HLM 모델 빌드 시 집단 변수 자동 지정
+export function buildHLMModel(
+  level1Vars: LatentVariable[],
+  level2Vars: LatentVariable[],
+  groupVar: string = 'group_id'
+): string {
+  const parts: string[] = []
+
+  // Level 1 측정모형
+  const l1Measurement = level1Vars
+    .filter((v) => v.items.length > 0)
+    .map((v) => {
+      const items = v.items.map((i) => i.columnName).join(' + ')
+      return `${v.name} =~ ${items}`
+    })
+    .join('\n')
+
+  if (l1Measurement) {
+    parts.push(`# Level 1 측정모형\n${l1Measurement}`)
+  }
+
+  // Level 2 측정모형
+  const l2Measurement = level2Vars
+    .filter((v) => v.items.length > 0)
+    .map((v) => {
+      const items = v.items.map((i) => i.columnName).join(' + ')
+      return `${v.name} =~ ${items}`
+    })
+    .join('\n')
+
+  if (l2Measurement) {
+    parts.push(`# Level 2 측정모형\n${l2Measurement}`)
+  }
+
+  // 집단 변수 지정
+  parts.push(`# 집단 변수: ${groupVar}`)
+  parts.push(`# cluster: ${groupVar}`)
+
+  return parts.join('\n\n')
+}

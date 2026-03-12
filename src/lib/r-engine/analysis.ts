@@ -1,4 +1,13 @@
 import { callREngine } from './client'
+import type {
+  TTestResult,
+  ANOVAResult,
+  CorrelationResult,
+  CrosstabResult,
+  CMVResult,
+  MGAResult,
+  ProcessResult,
+} from '@/types/analysis'
 
 // ─── 타입 정의 ───
 
@@ -152,4 +161,99 @@ export async function runMediation(
     model: model.model,
     bootstrap,
   })
+}
+
+// ─── Phase 2-1: 기본 분석 ───
+
+// 독립표본 t-test
+export async function runTTest(
+  data: Record<string, number[]>,
+  dv: string,
+  group: string,
+  ci = 0.95
+): Promise<TTestResult> {
+  return callREngine<TTestResult>('/analyze/ttest', { data, dv, group, ci })
+}
+
+// 일원분산분석 (ANOVA)
+export async function runANOVA(
+  data: Record<string, number[]>,
+  dv: string,
+  group: string
+): Promise<ANOVAResult> {
+  return callREngine<ANOVAResult>('/analyze/anova', { data, dv, group })
+}
+
+// 상관분석
+export async function runCorrelation(
+  data: Record<string, number[]>,
+  method: 'pearson' | 'spearman' | 'kendall' = 'pearson'
+): Promise<CorrelationResult> {
+  return callREngine<CorrelationResult>('/analyze/correlation', { data, method })
+}
+
+// 교차분석
+export async function runCrosstab(
+  data: Record<string, (string | number)[]>,
+  var1: string,
+  var2: string
+): Promise<CrosstabResult> {
+  return callREngine<CrosstabResult>('/analyze/crosstab', { data, var1, var2 })
+}
+
+// PROCESS 모형 (조건부 간접효과)
+export async function runProcess(
+  data: Record<string, number[]>,
+  model: string,
+  bootstrap = 5000,
+  estimator: 'ML' | 'MLR' = 'ML'
+): Promise<ProcessResult> {
+  return callREngine<ProcessResult>('/analyze/process', {
+    data, model, bootstrap, estimator,
+  }, 120000)
+}
+
+// PLS-SEM
+export interface PLSSEMResult {
+  success: boolean
+  path_coefficients: Record<string, number>
+  r_squared: Record<string, number>
+  reliability: {
+    alpha: Record<string, number>
+    rho_c: Record<string, number>
+    ave: Record<string, number>
+  }
+  bootstrap: {
+    paths: Record<string, number[]>
+  }
+  error?: string
+}
+
+export async function runPLSSEM(
+  data: Record<string, number[]>,
+  measurement: string,
+  structural: string
+): Promise<PLSSEMResult> {
+  return callREngine<PLSSEMResult>('/analyze/plssem', {
+    data, measurement, structural,
+  }, 120000)
+}
+
+// 다중집단분석 (MGA)
+export async function runMGA(
+  data: Record<string, number[]>,
+  model: string,
+  group: string,
+  estimator: 'ML' | 'MLR' | 'WLSMV' = 'ML'
+): Promise<MGAResult> {
+  return callREngine<MGAResult>('/analyze/mga', {
+    data, model, group, estimator,
+  }, 120000)
+}
+
+// 동일방법편의 (CMV)
+export async function runCMV(
+  data: Record<string, number[]>
+): Promise<CMVResult> {
+  return callREngine<CMVResult>('/analyze/cmv', { data })
 }

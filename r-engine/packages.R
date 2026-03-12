@@ -3,5 +3,7 @@ install.packages(c(
   "lavaan",
   "psych",
   "semTools",
-  "jsonlite"
+  "jsonlite",
+  "effsize",
+  "seminr"
 ), repos = "https://cran.r-project.org")

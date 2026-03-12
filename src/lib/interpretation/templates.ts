@@ -190,6 +190,101 @@ export function interpretMediation(
   return `${mediator}을(를) 통한 간접효과는 β=${formatNum(indirectEffect)}(95% CI [${formatNum(ci[0])}, ${formatNum(ci[1])}])로 부트스트랩 신뢰구간에 0이 포함되어 통계적으로 유의하지 않았다.`
 }
 
+// ── t-test 해석 ──
+
+export function interpretTTest(
+  dv: string,
+  group1: string,
+  group2: string,
+  t: number,
+  df: number,
+  p: number,
+  cohenD: number,
+  means: Record<string, number>
+): string {
+  const significant = p < 0.05
+  const effectSize = Math.abs(cohenD) >= 0.8 ? '큰' : Math.abs(cohenD) >= 0.5 ? '중간' : '작은'
+
+  if (significant) {
+    return `${dv}에 대한 독립표본 t-검정 결과, ${group1}(M=${formatNum(means[group1])})과 ${group2}(M=${formatNum(means[group2])}) 간 통계적으로 유의한 차이가 나타났다(t(${df.toFixed(1)})=${formatNum(t)}, ${formatP(p)}, Cohen's d=${formatNum(cohenD)}). 효과크기는 ${effectSize} 수준이었다.`
+  }
+
+  return `${dv}에 대한 독립표본 t-검정 결과, ${group1}(M=${formatNum(means[group1])})과 ${group2}(M=${formatNum(means[group2])}) 간 통계적으로 유의한 차이가 나타나지 않았다(t(${df.toFixed(1)})=${formatNum(t)}, ${formatP(p)}, Cohen's d=${formatNum(cohenD)}).`
+}
+
+// ── ANOVA 해석 ──
+
+export function interpretANOVA(
+  dv: string,
+  groupVar: string,
+  f: number,
+  df1: number,
+  df2: number,
+  p: number,
+  etaSquared: number
+): string {
+  const significant = p < 0.05
+  const effectSize = etaSquared >= 0.14 ? '큰' : etaSquared >= 0.06 ? '중간' : '작은'
+
+  if (significant) {
+    return `${dv}에 대한 ${groupVar}별 일원분산분석 결과, 집단 간 통계적으로 유의한 차이가 나타났다(F(${df1}, ${df2})=${formatNum(f)}, ${formatP(p)}, η²=${formatNum(etaSquared)}). 효과크기는 ${effectSize} 수준이었다.`
+  }
+
+  return `${dv}에 대한 ${groupVar}별 일원분산분석 결과, 집단 간 통계적으로 유의한 차이가 나타나지 않았다(F(${df1}, ${df2})=${formatNum(f)}, ${formatP(p)}, η²=${formatNum(etaSquared)}).`
+}
+
+// ── 상관분석 해석 ──
+
+export function interpretCorrelation(
+  var1: string,
+  var2: string,
+  r: number,
+  p: number
+): string {
+  const significant = p < 0.05
+  const direction = r > 0 ? '정(+)적' : '부(-)적'
+  const strength = Math.abs(r) >= 0.7 ? '강한' : Math.abs(r) >= 0.4 ? '중간' : '약한'
+
+  if (significant) {
+    return `${var1}과(와) ${var2} 간의 상관계수는 r=${formatNum(r)}(${formatP(p)})로 통계적으로 유의한 ${strength} ${direction} 상관관계가 나타났다.`
+  }
+
+  return `${var1}과(와) ${var2} 간의 상관계수는 r=${formatNum(r)}(${formatP(p)})로 통계적으로 유의하지 않았다.`
+}
+
+// ── 교차분석 해석 ──
+
+export function interpretCrosstab(
+  var1: string,
+  var2: string,
+  chiSquared: number,
+  df: number,
+  p: number,
+  cramersV: number
+): string {
+  const significant = p < 0.05
+  const effectSize = cramersV >= 0.35 ? '강한' : cramersV >= 0.15 ? '중간' : '약한'
+
+  if (significant) {
+    return `${var1}과(와) ${var2} 간의 교차분석 결과, 통계적으로 유의한 관련성이 나타났다(χ²(${df})=${formatNum(chiSquared)}, ${formatP(p)}, Cramér's V=${formatNum(cramersV)}). 효과크기는 ${effectSize} 수준이었다.`
+  }
+
+  return `${var1}과(와) ${var2} 간의 교차분석 결과, 통계적으로 유의한 관련성이 나타나지 않았다(χ²(${df})=${formatNum(chiSquared)}, ${formatP(p)}, Cramér's V=${formatNum(cramersV)}).`
+}
+
+// ── CMV (동일방법편의) 해석 ──
+
+export function interpretCMV(
+  firstFactorVariance: number,
+  isProblematic: boolean
+): string {
+  if (isProblematic) {
+    return `Harman의 단일요인 검정 결과, 첫 번째 요인이 전체 분산의 ${firstFactorVariance.toFixed(1)}%를 설명하여 50% 기준을 초과하였다. 동일방법편의(Common Method Variance)가 우려되므로 추가적인 검증이 필요하다.`
+  }
+
+  return `Harman의 단일요인 검정 결과, 첫 번째 요인이 전체 분산의 ${firstFactorVariance.toFixed(1)}%를 설명하여 50% 기준 이하로, 동일방법편의(Common Method Variance)가 심각하지 않은 것으로 판단된다.`
+}
+
 // ── 전체 분석 결과 통합 해석 ──
 
 export function generateFullInterpretation(params: {

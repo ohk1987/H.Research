@@ -12,7 +12,8 @@
       "Bash(cd \"D:/H.Research\" && npx shadcn@latest init -d 2>&1)",
       "Bash(cd \"D:/H.Research\" && npx shadcn@latest add input card badge -y 2>&1)",
       "Bash(cd \"D:/H.Research\" && npm run build 2>&1)",
-      "Bash(cd \"D:/H.Research\" && npm run lint 2>&1)"
+      "Bash(cd \"D:/H.Research\" && npm run lint 2>&1)",
+      "Bash(cd \"D:/H.Research\" && npm install xlsx zustand 2>&1)"
     ]
   }
 }

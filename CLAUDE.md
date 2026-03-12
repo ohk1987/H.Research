@@ -119,10 +119,10 @@ fix: correct CFA result parsing from R engine response
 
 ```
 Phase 0  기반 구축 (완료 목표: Week 4)
-  [ ] Next.js 프로젝트 초기화
-  [ ] Supabase 연동 및 DB 스키마
-  [ ] R 엔진 Docker 구성
-  [ ] 기본 UI 컴포넌트
+  [x] Next.js 프로젝트 초기화
+  [x] Supabase 연동 및 DB 스키마
+  [x] R 엔진 Docker 구성
+  [x] 기본 UI 컴포넌트
 
 Phase 1  MVP (Week 5~16)
   [ ] 데이터 업로드 + 변수 설정

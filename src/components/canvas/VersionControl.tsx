@@ -3,16 +3,17 @@
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Save, Clock } from "lucide-react"
+import { Save, Clock, CheckCircle } from "lucide-react"
 import { useProjectStore } from "@/lib/store/project-store"
 import type { Node, Edge } from "@xyflow/react"
 
 interface VersionControlProps {
   nodes: Node[]
   edges: Edge[]
+  approvedVersions?: Set<string>
 }
 
-export default function VersionControl({ nodes, edges }: VersionControlProps) {
+export default function VersionControl({ nodes, edges, approvedVersions }: VersionControlProps) {
   const versions = useProjectStore((s) => s.versions)
   const lastSavedAt = useProjectStore((s) => s.lastSavedAt)
   const saveVersion = useProjectStore((s) => s.saveVersion)
@@ -66,8 +67,11 @@ export default function VersionControl({ nodes, edges }: VersionControlProps) {
         </div>
       )}
 
-      <span className="text-xs font-medium text-muted-foreground">
+      <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
         v{versions.length + 1}
+        {approvedVersions?.has(String(versions.length)) && (
+          <CheckCircle className="size-3 text-green-600" />
+        )}
       </span>
 
       <div className="relative">

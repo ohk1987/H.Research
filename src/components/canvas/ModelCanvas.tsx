@@ -171,6 +171,8 @@ export default function ModelCanvas() {
         color,
         itemCount,
         alpha: null,
+        ave: null,
+        cr: null,
         variableId,
       } satisfies LatentVariableNodeData,
     }

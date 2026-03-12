@@ -2,6 +2,7 @@
 
 import { memo } from "react"
 import { Handle, Position, type NodeProps, type Node } from "@xyflow/react"
+import { AlertTriangle } from "lucide-react"
 import type { VariableColor } from "@/types/variables"
 
 export type LatentVariableNodeData = {
@@ -9,6 +10,8 @@ export type LatentVariableNodeData = {
   color: VariableColor
   itemCount: number
   alpha: number | null
+  ave: number | null
+  cr: number | null
   variableId: string
 }
 
@@ -31,6 +34,10 @@ const COLOR_LABELS: Record<VariableColor, string> = {
 function LatentVariableNode({ data, selected }: NodeProps<LatentVariableNodeType>) {
   const style = COLOR_STYLES[data.color]
 
+  // 기준 미달 경고
+  const alphaWarning = data.alpha !== null && data.alpha < 0.7
+  const aveWarning = data.ave !== null && data.ave < 0.5
+
   return (
     <div
       className={`relative flex flex-col items-center rounded-[50%/40%] border-2 px-6 py-4 shadow-sm transition-shadow ${style.border} ${style.bg} ${
@@ -44,6 +51,17 @@ function LatentVariableNode({ data, selected }: NodeProps<LatentVariableNodeType
         className="!h-3 !w-3 !border-2 !border-white !bg-gray-400"
       />
 
+      {/* 경고 아이콘 */}
+      {(alphaWarning || aveWarning) && (
+        <div className="absolute -right-1 -top-1" title={
+          alphaWarning && aveWarning
+            ? "α < .70, AVE < .50"
+            : alphaWarning ? "α < .70" : "AVE < .50"
+        }>
+          <AlertTriangle className="size-4 text-orange-500" />
+        </div>
+      )}
+
       <span className={`text-[10px] font-medium ${style.text}`}>
         {COLOR_LABELS[data.color]}
       </span>
@@ -53,9 +71,16 @@ function LatentVariableNode({ data, selected }: NodeProps<LatentVariableNodeType
       <span className="mt-1 text-xs text-muted-foreground">
         문항 {data.itemCount}개
       </span>
-      <span className="mt-0.5 text-xs font-mono text-muted-foreground">
-        α = {data.alpha !== null ? data.alpha.toFixed(3) : "--"}
-      </span>
+      <div className="mt-0.5 flex gap-2 text-xs font-mono text-muted-foreground">
+        <span className={alphaWarning ? "text-orange-600 font-semibold" : ""}>
+          α={data.alpha !== null ? data.alpha.toFixed(3) : "--"}
+        </span>
+        {data.ave !== null && (
+          <span className={aveWarning ? "text-orange-600 font-semibold" : ""}>
+            AVE={data.ave.toFixed(3)}
+          </span>
+        )}
+      </div>
 
       <Handle
         type="source"

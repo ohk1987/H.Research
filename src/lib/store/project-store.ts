@@ -1,5 +1,14 @@
 import { create } from 'zustand'
+import type { Node, Edge } from '@xyflow/react'
 import type { ParsedFileData, LatentVariable, VariableColor } from '@/types/variables'
+
+export interface CanvasVersion {
+  id: string
+  name: string
+  nodes: Node[]
+  edges: Edge[]
+  savedAt: string
+}
 
 interface ProjectState {
   projectId: string | null
@@ -7,6 +16,13 @@ interface ProjectState {
   uploadedFile: { name: string; size: number } | null
   uploadedData: ParsedFileData | null
   latentVariables: LatentVariable[]
+
+  // 캔버스
+  canvasNodes: Node[]
+  canvasEdges: Edge[]
+  currentVersionId: string | null
+  versions: CanvasVersion[]
+  lastSavedAt: string | null
 
   // 프로젝트
   setProject: (id: string, name: string) => void
@@ -22,6 +38,12 @@ interface ProjectState {
   unassignItem: (variableId: string, itemId: string) => void
   toggleItemReverse: (variableId: string, itemId: string) => void
   reorderVariables: (fromIndex: number, toIndex: number) => void
+
+  // 캔버스
+  setCanvasNodes: (nodes: Node[]) => void
+  setCanvasEdges: (edges: Edge[]) => void
+  saveVersion: (name: string) => void
+  loadVersion: (versionId: string) => void
 }
 
 let nextId = 1
@@ -29,12 +51,19 @@ function generateId() {
   return `temp_${Date.now()}_${nextId++}`
 }
 
-export const useProjectStore = create<ProjectState>((set) => ({
+export const useProjectStore = create<ProjectState>((set, get) => ({
   projectId: null,
   projectName: null,
   uploadedFile: null,
   uploadedData: null,
   latentVariables: [],
+
+  // 캔버스
+  canvasNodes: [],
+  canvasEdges: [],
+  currentVersionId: null,
+  versions: [],
+  lastSavedAt: null,
 
   setProject: (id, name) => set({ projectId: id, projectName: name }),
 
@@ -62,7 +91,6 @@ export const useProjectStore = create<ProjectState>((set) => ({
 
   assignItemToVariable: (variableId, item) =>
     set((state) => {
-      // 다른 잠재변수에서 이미 할당된 경우 제거
       const cleaned = state.latentVariables.map((v) => ({
         ...v,
         items: v.items.filter((i) => i.columnName !== item.columnName),
@@ -117,4 +145,36 @@ export const useProjectStore = create<ProjectState>((set) => ({
       newVars.splice(toIndex, 0, moved)
       return { latentVariables: newVars }
     }),
+
+  // 캔버스
+  setCanvasNodes: (nodes) => set({ canvasNodes: nodes }),
+  setCanvasEdges: (edges) => set({ canvasEdges: edges }),
+
+  saveVersion: (name) => {
+    const state = get()
+    const version: CanvasVersion = {
+      id: generateId(),
+      name,
+      nodes: state.canvasNodes,
+      edges: state.canvasEdges,
+      savedAt: new Date().toISOString(),
+    }
+    set((s) => ({
+      versions: [...s.versions, version],
+      currentVersionId: version.id,
+      lastSavedAt: version.savedAt,
+    }))
+  },
+
+  loadVersion: (versionId) => {
+    const state = get()
+    const version = state.versions.find((v) => v.id === versionId)
+    if (version) {
+      set({
+        canvasNodes: version.nodes,
+        canvasEdges: version.edges,
+        currentVersionId: version.id,
+      })
+    }
+  },
 }))

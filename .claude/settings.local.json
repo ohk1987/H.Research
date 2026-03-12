@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd \"D:/H.Research\" && npx create-next-app@latest . --typescript --tailwind --app --src-dir --eslint --no-git --use-npm 2>&1)",
+      "Bash(cd \"D:/H.Research\" && mkdir -p /tmp/h-research-init && npx create-next-app@latest /tmp/h-research-init --typescript --tailwind --app --src-dir --eslint --no-git --use-npm 2>&1)",
+      "Bash(cd \"D:/H.Research\" && rm -rf /tmp/h-research-init && npx create-next-app@latest /tmp/h-research-init --typescript --tailwind --app --src-dir --eslint --no-git --use-npm --turbopack 2>&1 << 'EOF'\nNo\nNo\nEOF)",
+      "Bash(npx create-next-app@latest /tmp/h-research-init --typescript --tailwind --app --src-dir --eslint --no-git --use-npm --turbopack --no-import-alias)",
+      "Bash(cd /tmp/h-research-init && cp -r .eslintrc.json next.config.ts next-env.d.ts postcss.config.mjs tsconfig.json src public node_modules \"D:/H.Research/\" 2>/dev/null; cp -r .next \"D:/H.Research/\" 2>/dev/null; ls /tmp/h-research-init/)",
+      "Bash(cd \"D:/H.Research\" && npm install @supabase/supabase-js @supabase/ssr 2>&1)",
+      "Bash(cd \"D:/H.Research\" && rm -rf node_modules && npm install 2>&1)",
+      "Bash(cd \"D:/H.Research\" && npm install @radix-ui/react-slot class-variance-authority clsx tailwind-merge lucide-react 2>&1)",
+      "Bash(cd \"D:/H.Research\" && npx shadcn@latest init -d 2>&1)"
+    ]
+  }
+}

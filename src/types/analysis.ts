@@ -69,6 +69,62 @@ export interface MGAResult {
   delta_cfi_scalar: number
 }
 
+// ─── HLM 다층분석 ───
+
+export interface HLMPrereqVariableResult {
+  icc1: number
+  rwg_mean: number
+  group_means: Record<string, number>
+  n_groups: number
+  icc_adequate: boolean
+  rwg_adequate: boolean
+  error?: string
+}
+
+export interface HLMPrereqResult {
+  success: boolean
+  prerequisites: Record<string, HLMPrereqVariableResult>
+  error?: string
+}
+
+export interface HLMFixedEffect {
+  estimate: number
+  se: number
+  t: number
+  p: number
+}
+
+export interface HLMNullResult {
+  success: boolean
+  model_type: 'null'
+  icc: number
+  variance_components: {
+    between: number
+    within: number
+  }
+  error?: string
+}
+
+export interface HLMResult {
+  success: boolean
+  model_type: 'null' | 'random_intercept' | 'random_slope' | 'cross_level'
+  icc: number
+  fixed_effects?: Record<string, HLMFixedEffect>
+  random_effects?: Record<string, unknown>
+  aic?: number
+  bic?: number
+  model_comparison?: {
+    chi_sq: number
+    df: number
+    p: number
+  }
+  variance_components?: {
+    between: number
+    within: number
+  }
+  error?: string
+}
+
 export interface ProcessResult {
   success: boolean
   parameters: {

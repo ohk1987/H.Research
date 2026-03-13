@@ -486,3 +486,127 @@ function(req) {
     list(success = FALSE, error = paste("CMV 분석 오류:", e$message))
   })
 }
+
+# ─── Phase 3-1: HLM 다층분석 ───
+
+#* @post /analyze/hlm/prerequisites
+function(req) {
+  library(nlme)
+  library(psych)
+  body <- jsonlite::fromJSON(req$postBody)
+  data <- as.data.frame(body$data)
+  group_var <- body$groupVar   # "group_id"
+  target_vars <- body$targetVars  # 집계 대상 변수들
+
+  results <- list()
+
+  for (var in target_vars) {
+    tryCatch({
+      # ICC(1) 계산
+      fit <- nlme::lme(as.formula(paste(var, "~ 1")),
+                       random = as.formula(paste("~ 1|", group_var)),
+                       data = data, na.action = na.omit)
+      vc <- nlme::VarCorr(fit)
+      icc1 <- as.numeric(vc[1,1]) /
+              (as.numeric(vc[1,1]) + as.numeric(vc[2,1]))
+
+      # rwg 계산 (단일 문항 기준)
+      var_data <- data[[var]]
+      observed_var <- var(var_data, na.rm = TRUE)
+      eu_var <- (max(var_data, na.rm = TRUE)^2 - 1) / 12
+      rwg <- 1 - (observed_var / eu_var)
+
+      # 집단별 평균 (Level 2 집계)
+      group_means <- tapply(data[[var]], data[[group_var]], mean, na.rm = TRUE)
+
+      results[[var]] <- list(
+        icc1 = round(icc1, 3),
+        rwg_mean = round(mean(rwg), 3),
+        group_means = as.list(group_means),
+        n_groups = length(unique(data[[group_var]])),
+        icc_adequate = icc1 >= 0.05,
+        rwg_adequate = mean(rwg) >= 0.70
+      )
+    }, error = function(e) {
+      results[[var]] <<- list(
+        error = paste("변수", var, "분석 오류:", e$message)
+      )
+    })
+  }
+
+  list(success = TRUE, prerequisites = results)
+}
+
+#* @post /analyze/hlm
+function(req) {
+  library(nlme)
+  library(lme4)
+  body <- jsonlite::fromJSON(req$postBody)
+  data <- as.data.frame(body$data)
+  outcome <- body$outcome          # Level 1 결과변수
+  level1_preds <- body$level1Preds # Level 1 예측변수
+  level2_preds <- body$level2Preds # Level 2 예측변수 (집단 변수)
+  group_var <- body$groupVar       # "group_id"
+  model_type <- body$modelType     # "null" | "random_intercept" | "random_slope" | "cross_level"
+
+  tryCatch({
+    # Null model (ICC 계산용)
+    null_formula <- as.formula(paste(outcome, "~ 1 + (1|", group_var, ")"))
+    null_fit <- lme4::lmer(null_formula, data = data, REML = FALSE)
+
+    # Null model ICC
+    vc <- lme4::VarCorr(null_fit)
+    icc <- as.numeric(vc[[1]]) /
+           (as.numeric(vc[[1]]) + attr(vc, "sc")^2)
+
+    if (model_type == "null") {
+      return(list(
+        success = TRUE,
+        model_type = "null",
+        icc = round(icc, 3),
+        variance_components = list(
+          between = round(as.numeric(vc[[1]]), 3),
+          within = round(attr(vc, "sc")^2, 3)
+        )
+      ))
+    }
+
+    # Random intercept model
+    l1_terms <- paste(level1_preds, collapse = " + ")
+    ri_formula <- as.formula(
+      paste(outcome, "~", l1_terms, "+ (1|", group_var, ")")
+    )
+    ri_fit <- lme4::lmer(ri_formula, data = data, REML = FALSE)
+
+    # 모델 비교
+    model_comparison <- anova(null_fit, ri_fit)
+
+    # 고정효과
+    se <- sqrt(diag(as.matrix(vcov(ri_fit))))
+    t_vals <- lme4::fixef(ri_fit) / se
+
+    params <- data.frame(
+      estimate = round(lme4::fixef(ri_fit), 3),
+      se = round(se, 3),
+      t = round(t_vals, 3),
+      p = round(2 * pt(-abs(t_vals), df = nrow(data) - length(lme4::fixef(ri_fit))), 3)
+    )
+
+    list(
+      success = TRUE,
+      model_type = model_type,
+      icc = round(icc, 3),
+      fixed_effects = params,
+      random_effects = as.list(lme4::VarCorr(ri_fit)),
+      aic = AIC(ri_fit),
+      bic = BIC(ri_fit),
+      model_comparison = list(
+        chi_sq = round(model_comparison$Chisq[2], 3),
+        df = model_comparison$Df[2],
+        p = round(model_comparison[["Pr(>Chisq)"]][2], 3)
+      )
+    )
+  }, error = function(e) {
+    list(success = FALSE, error = paste("HLM 분석 오류:", e$message))
+  })
+}

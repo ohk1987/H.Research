@@ -7,6 +7,8 @@ import type {
   CMVResult,
   MGAResult,
   ProcessResult,
+  HLMPrereqResult,
+  HLMResult,
 } from '@/types/analysis'
 
 // ─── 타입 정의 ───
@@ -256,4 +258,33 @@ export async function runCMV(
   data: Record<string, number[]>
 ): Promise<CMVResult> {
   return callREngine<CMVResult>('/analyze/cmv', { data })
+}
+
+// ─── Phase 3-1: HLM 다층분석 ───
+
+// HLM 사전 검증 (ICC·rwg)
+export async function runHLMPrerequisites(
+  data: Record<string, number[]>,
+  groupVar: string,
+  targetVars: string[]
+): Promise<HLMPrereqResult> {
+  return callREngine<HLMPrereqResult>('/analyze/hlm/prerequisites', {
+    data, groupVar, targetVars,
+  }, 120000)
+}
+
+// HLM 다층모형
+export async function runHLM(
+  data: Record<string, number[]>,
+  outcome: string,
+  groupVar: string,
+  modelType: 'null' | 'random_intercept' | 'random_slope' | 'cross_level',
+  level1Preds?: string[],
+  level2Preds?: string[]
+): Promise<HLMResult> {
+  return callREngine<HLMResult>('/analyze/hlm', {
+    data, outcome, groupVar, modelType,
+    level1Preds: level1Preds ?? [],
+    level2Preds: level2Preds ?? [],
+  }, 120000)
 }

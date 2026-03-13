@@ -285,6 +285,76 @@ export function interpretCMV(
   return `Harman의 단일요인 검정 결과, 첫 번째 요인이 전체 분산의 ${firstFactorVariance.toFixed(1)}%를 설명하여 50% 기준 이하로, 동일방법편의(Common Method Variance)가 심각하지 않은 것으로 판단된다.`
 }
 
+// ── HLM 사전 검증 해석 ──
+
+export function interpretHLMPrerequisites(
+  variableName: string,
+  icc1: number,
+  rwgMean: number,
+  nGroups: number
+): string {
+  const iccMet = icc1 >= 0.05
+  const rwgMet = rwgMean >= 0.70
+  const iccPercent = (icc1 * 100).toFixed(1)
+
+  const parts: string[] = []
+
+  parts.push(
+    `ICC(1) 분석 결과, ${variableName}의 집단 간 분산 비율은 ${iccPercent}%로 HLM 적용 기준(5%)을 ${iccMet ? '충족' : '미충족'}하였다(ICC(1)=${formatNum(icc1)}).`
+  )
+
+  parts.push(
+    `집단 내 합의도 rwg 평균은 ${formatNum(rwgMean)}로 기준값(.70)을 ${rwgMet ? '충족' : '미충족'}하였다.`
+  )
+
+  if (nGroups < 30) {
+    parts.push(
+      `분석 대상 집단 수는 ${nGroups}개로, HLM 분석의 통계적 검정력이 낮을 수 있다(권장 30개 이상).`
+    )
+  }
+
+  if (iccMet && rwgMet) {
+    parts.push(`이상의 결과를 종합하면, ${variableName}의 집단 수준 집계(aggregation)가 적합한 것으로 판단된다.`)
+  } else {
+    parts.push(`이상의 결과를 종합하면, ${variableName}의 집단 수준 집계 적합성에 대한 추가 검토가 필요하다.`)
+  }
+
+  return parts.join(' ')
+}
+
+// ── HLM Null 모델 해석 ──
+
+export function interpretHLMNull(
+  icc: number,
+  betweenVar: number,
+  withinVar: number
+): string {
+  const iccPercent = (icc * 100).toFixed(1)
+  const adequate = icc >= 0.05
+  const strength = icc >= 0.20 ? '강한' : icc >= 0.05 ? '중간 수준의' : '미미한'
+
+  return `Null 모델 분석 결과, 집단 간 분산은 ${formatNum(betweenVar)}, 집단 내 분산은 ${formatNum(withinVar)}이었다. 전체 분산의 ${iccPercent}%가 집단 간 차이로 설명되어(ICC=${formatNum(icc)}), ${strength} 집단 효과가 확인되었다. 다층모형 적용이 ${adequate ? '적절한 것으로 판단된다' : '부적절할 수 있으며, 단일 수준 분석을 고려할 필요가 있다'}.`
+}
+
+// ── HLM 고정효과 해석 ──
+
+export function interpretHLMFixed(
+  variableName: string,
+  outcomeName: string,
+  estimate: number,
+  se: number,
+  p: number
+): string {
+  const significant = p < 0.05
+  const direction = estimate > 0 ? '정(+)적' : '부(-)적'
+
+  if (significant) {
+    return `${variableName}은(는) ${outcomeName}에 유의한 ${direction} 영향을 미치는 것으로 나타났다(b=${formatNum(estimate)}, SE=${formatNum(se)}, ${formatP(p)}).`
+  }
+
+  return `${variableName}이(가) ${outcomeName}에 미치는 영향은 통계적으로 유의하지 않았다(b=${formatNum(estimate)}, SE=${formatNum(se)}, ${formatP(p)}).`
+}
+
 // ── 전체 분석 결과 통합 해석 ──
 
 export function generateFullInterpretation(params: {

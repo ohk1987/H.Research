@@ -5,5 +5,7 @@ install.packages(c(
   "semTools",
   "jsonlite",
   "effsize",
-  "seminr"
-), repos = "https://cran.r-project.org")
+  "seminr",
+  "nlme",
+  "lme4"
+), repos = "https://packagemanager.posit.co/cran/__linux__/jammy/latest")

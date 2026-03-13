@@ -1,7 +1,6 @@
 FROM hankyeloh/h-research-r-engine:latest
 
-RUN R -e "install.packages(c('effsize', 'lme4', 'nlme', 'remotes'), repos='https://cran.r-project.org')"
-RUN R -e "remotes::install_github('sem-in-r/seminr')"
+RUN R -e "install.packages(c('effsize', 'lme4', 'nlme'), repos='https://cran.r-project.org')"
 
 WORKDIR /app
 COPY plumber.R .

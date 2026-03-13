@@ -3,7 +3,7 @@ library(lavaan)
 library(psych)
 library(jsonlite)
 library(effsize)
-library(seminr)
+
 
 # NULL 대체 연산자
 `%||%` <- function(a, b) if (is.null(a)) b else a
@@ -362,6 +362,10 @@ function(req) {
 #* @post /analyze/plssem
 #* @param data PLS-SEM 분석 (JSON)
 function(req) {
+  if (!requireNamespace("seminr", quietly = TRUE)) {
+    return(list(success = FALSE, error = "PLS-SEM 엔진 준비 중입니다."))
+  }
+
   body <- jsonlite::fromJSON(req$postBody)
   data <- as.data.frame(body$data)
   measurement_model <- body$measurement

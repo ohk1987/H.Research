@@ -10,6 +10,9 @@ import {
   FileText,
   Layers,
   ClipboardCheck,
+  FileOutput,
+  History,
+  Home,
 } from "lucide-react"
 
 interface ProjectNavProps {
@@ -17,6 +20,7 @@ interface ProjectNavProps {
 }
 
 const NAV_ITEMS = [
+  { href: "", label: "홈", icon: Home },
   { href: "upload", label: "데이터 업로드", icon: Upload },
   { href: "variables", label: "변수 설정", icon: Settings },
   { href: "canvas", label: "모델 캔버스", icon: LayoutGrid },
@@ -24,6 +28,8 @@ const NAV_ITEMS = [
   { href: "basic-analysis", label: "기초 분석", icon: FileText },
   { href: "hlm-check", label: "다층분석 사전검증", icon: ClipboardCheck },
   { href: "hlm", label: "다층분석(HLM)", icon: Layers },
+  { href: "report", label: "보고서", icon: FileOutput },
+  { href: "history", label: "히스토리", icon: History },
 ]
 
 export default function ProjectNav({ projectId }: ProjectNavProps) {
@@ -32,12 +38,14 @@ export default function ProjectNav({ projectId }: ProjectNavProps) {
   return (
     <nav className="flex gap-1 overflow-x-auto border-b px-4 py-1">
       {NAV_ITEMS.map((item) => {
-        const href = `/projects/${projectId}/${item.href}`
+        const href = item.href
+          ? `/projects/${projectId}/${item.href}`
+          : `/projects/${projectId}`
         const isActive = pathname === href
 
         return (
           <Link
-            key={item.href}
+            key={item.href || "home"}
             href={href}
             className={`flex shrink-0 items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
               isActive

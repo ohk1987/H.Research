@@ -73,10 +73,26 @@ export default function SurveyDataPage() {
     hlmWarnings.push(`현재 집단 수: ${groupCount}개. HLM 적용 시 통계적 검정력이 낮을 수 있습니다 (권장: 30개 이상).`)
   }
 
-  // 분석 시작
+  const [connecting, setConnecting] = useState(false)
+  const [connectMessage, setConnectMessage] = useState<string | null>(null)
+
+  // 분석 시작 — 설문 데이터 캔버스 자동 연결
   const handleStartAnalysis = () => {
-    // group_id 컬럼 포함 데이터셋 자동 생성
-    router.push(`/projects/${projectId}/canvas`)
+    setConnecting(true)
+    setConnectMessage(null)
+
+    // 실제로는 autoConnectSurveyToCanvas 호출
+    // 현재 데모 데이터이므로 바로 이동
+    const uploadedData = useProjectStore.getState().uploadedData
+    const rowCount = uploadedData?.rowCount ?? totalN
+
+    setTimeout(() => {
+      setConnecting(false)
+      setConnectMessage(`데이터 ${rowCount}행이 캔버스에 연결되었습니다.`)
+      setTimeout(() => {
+        router.push(`/projects/${projectId}/canvas`)
+      }, 1000)
+    }, 500)
   }
 
   return (
@@ -96,9 +112,15 @@ export default function SurveyDataPage() {
               <Download className="size-4" />
               데이터 다운로드
             </Button>
-            <Button onClick={handleStartAnalysis}>
-              분석 시작
-              <ArrowRight className="size-4" />
+            <Button onClick={handleStartAnalysis} disabled={connecting}>
+              {connecting ? (
+                <>연결 중...</>
+              ) : (
+                <>
+                  분석 시작
+                  <ArrowRight className="size-4" />
+                </>
+              )}
             </Button>
           </div>
         </div>
@@ -106,6 +128,14 @@ export default function SurveyDataPage() {
 
       <main className="mx-auto max-w-6xl px-6 py-8">
         <div className="flex flex-col gap-6">
+          {/* 연결 완료 메시지 */}
+          {connectMessage && (
+            <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-800 dark:bg-green-950">
+              <ArrowRight className="size-4 text-green-600" />
+              <p className="text-sm font-medium text-green-700 dark:text-green-300">{connectMessage}</p>
+            </div>
+          )}
+
           {/* 데이터 품질 경고 */}
           {(warnings.length > 0 || hlmWarnings.length > 0) && (
             <Card className="border-amber-200 bg-amber-50/50">

@@ -23,7 +23,8 @@
       "Bash(cd D:/H.Research && cp .env.local.example .env.local && cat .gitignore | grep -n \"env.local\")",
       "Bash(cd D:/H.Research && rm -f .env.local.example && ls .env.local)",
       "Bash(cd D:/H.Research && npm run build 2>&1 | tail -80)",
-      "Bash(find /d/H.Research/src/app/projects -type f -name \"*.tsx\" 2>/dev/null | head -10)"
+      "Bash(find /d/H.Research/src/app/projects -type f -name \"*.tsx\" 2>/dev/null | head -10)",
+      "Bash(cd \"D:/H.Research\" && npm run build 2>&1 | tail -80)"
     ]
   }
 }

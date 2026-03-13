@@ -1,8 +1,14 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import Link from "next/link"
 import { ReactFlowProvider } from "@xyflow/react"
-import ModelCanvas from "@/components/canvas/ModelCanvas"
+
+// SSR 비활성화 — React Flow는 브라우저 전용
+const ModelCanvas = dynamic(
+  () => import("@/components/canvas/ModelCanvas"),
+  { ssr: false }
+)
 
 export default function CanvasPage() {
   return (
@@ -15,9 +21,9 @@ export default function CanvasPage() {
           </Link>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span>1. 데이터 업로드</span>
-            <span>→</span>
+            <span>&rarr;</span>
             <span>2. 변수 설정</span>
-            <span>→</span>
+            <span>&rarr;</span>
             <span className="font-medium text-foreground">3. 캔버스</span>
           </div>
         </div>

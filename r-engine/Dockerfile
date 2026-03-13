@@ -7,4 +7,4 @@ COPY plumber.R .
 
 EXPOSE 8000
 
-CMD ["Rscript", "-e", "library(plumber); pr('plumber.R') |> pr_run(host='0.0.0.0', port=8000)"]
+CMD ["Rscript", "-e", "library(plumber); port <- as.integer(Sys.getenv('PORT', 8000)); pr('plumber.R') |> pr_run(host='0.0.0.0', port=port)"]

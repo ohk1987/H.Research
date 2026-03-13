@@ -20,7 +20,7 @@ export default function NewProjectPage() {
     // 임시 ID 생성 (Supabase 인증 연동 전)
     const tempId = `proj_${Date.now()}`
     setProject(tempId, name.trim())
-    router.push(`/projects/${tempId}/upload`)
+    router.push(`/projects/${tempId}/onboarding`)
   }
 
   return (

@@ -1,6 +1,6 @@
 FROM hankyeloh/h-research-r-engine:latest
 
-RUN R -e "install.packages('effsize', repos='https://cran.r-project.org')"
+RUN R -e "install.packages(c('effsize', 'seminr', 'lme4', 'nlme'), repos='https://cran.r-project.org')"
 
 WORKDIR /app
 COPY plumber.R .

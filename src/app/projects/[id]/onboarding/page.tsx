@@ -2,8 +2,6 @@
 
 import { useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
-import Link from "next/link"
-import { Card, CardContent } from "@/components/ui/card"
 import { Upload, FileText } from "lucide-react"
 import { useProjectStore } from "@/lib/store/project-store"
 
@@ -23,55 +21,43 @@ export default function OnboardingPage() {
   }, [uploadedData, latentVariables, projectId, router])
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <header className="border-b">
-        <div className="mx-auto flex max-w-5xl items-center px-6 py-4">
-          <Link href="/projects" className="text-xl font-bold">
-            H.Research
-          </Link>
-        </div>
-      </header>
+    <div className="flex items-center justify-center p-6" style={{ minHeight: "calc(100vh - 52px)" }}>
+      <div className="w-full max-w-2xl text-center">
+        <h2 className="mb-2 text-2xl font-bold text-[#1E2A3A]">
+          새 프로젝트를 어떻게 시작하시겠어요?
+        </h2>
+        <p className="mb-10 text-slate-500">연구 데이터 준비 방식을 선택해주세요.</p>
 
-      <main className="flex flex-1 flex-col items-center justify-center px-6">
-        <h2 className="mb-2 text-2xl font-bold">새 프로젝트를 어떻게 시작하시겠어요?</h2>
-        <p className="mb-8 text-muted-foreground">연구 데이터 준비 방식을 선택해주세요.</p>
-
-        <div className="grid w-full max-w-2xl gap-6 sm:grid-cols-2">
-          <Card
-            className="cursor-pointer transition-all hover:border-primary hover:shadow-md"
+        <div className="grid gap-6 sm:grid-cols-2">
+          <button
+            type="button"
             onClick={() => router.push(`/projects/${projectId}/upload`)}
+            className="group flex flex-col items-center gap-4 rounded-xl border border-slate-200 bg-white py-10 transition-all hover:border-[#1E2A3A]/30 hover:shadow-md"
           >
-            <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
-              <div className="flex size-16 items-center justify-center rounded-full bg-blue-50">
-                <Upload className="size-8 text-blue-600" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold">기존 데이터 업로드</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Excel/CSV 파일이 있는 경우
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+            <div className="flex size-16 items-center justify-center rounded-full bg-blue-50 transition-colors group-hover:bg-blue-100">
+              <Upload className="size-7 text-blue-600" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-[#1E2A3A]">기존 데이터 업로드</h3>
+              <p className="mt-1 text-sm text-slate-500">Excel/CSV 파일이 있는 경우</p>
+            </div>
+          </button>
 
-          <Card
-            className="cursor-pointer transition-all hover:border-primary hover:shadow-md"
+          <button
+            type="button"
             onClick={() => router.push(`/projects/${projectId}/variables`)}
+            className="group flex flex-col items-center gap-4 rounded-xl border border-slate-200 bg-white py-10 transition-all hover:border-[#1E2A3A]/30 hover:shadow-md"
           >
-            <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
-              <div className="flex size-16 items-center justify-center rounded-full bg-green-50">
-                <FileText className="size-8 text-green-600" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold">설문부터 설계하기</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  설문지를 만들어 데이터 수집
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+            <div className="flex size-16 items-center justify-center rounded-full bg-emerald-50 transition-colors group-hover:bg-emerald-100">
+              <FileText className="size-7 text-emerald-600" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-[#1E2A3A]">설문부터 설계하기</h3>
+              <p className="mt-1 text-sm text-slate-500">설문지를 만들어 데이터 수집</p>
+            </div>
+          </button>
         </div>
-      </main>
+      </div>
     </div>
   )
 }

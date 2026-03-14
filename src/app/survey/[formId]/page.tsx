@@ -42,6 +42,7 @@ export default function SurveyRespondentPage() {
   const [answers, setAnswers] = useState<Record<string, string | number>>({})
   const [submitted, setSubmitted] = useState(false)
   const [groupId, setGroupId] = useState<string | null>(null)
+  const [surveyStatus, setSurveyStatus] = useState<'active' | 'closed' | 'draft'>('active')
 
   // 그룹 토큰 처리
   useEffect(() => {
@@ -50,6 +51,12 @@ export default function SurveyRespondentPage() {
       setGroupId(groupToken)
     }
   }, [groupToken])
+
+  // 설문 상태 확인 (TODO: Supabase에서 survey_forms.status 조회)
+  useEffect(() => {
+    // 실제로는 fetch(`/api/survey/${formId}/status`) 등으로 확인
+    // 데모에서는 active 상태 유지
+  }, [formId])
 
   // localStorage 임시 저장
   useEffect(() => {
@@ -153,6 +160,25 @@ export default function SurveyRespondentPage() {
       ))}
     </div>
   )
+
+  // 설문 종료 안내
+  if (surveyStatus === 'closed') {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-lg">
+          <CardContent className="flex flex-col items-center gap-4 py-12">
+            <div className="flex size-16 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+              <Send className="size-8" />
+            </div>
+            <h2 className="text-xl font-bold text-[#1E2A3A]">설문이 종료되었습니다</h2>
+            <p className="text-center text-sm text-muted-foreground">
+              참여해 주셔서 감사합니다.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   // 인트로
   if (currentPage === 0) {

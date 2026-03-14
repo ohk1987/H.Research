@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, ArrowRight, Download, AlertTriangle } from "lucide-react"
 import { useProjectStore } from "@/lib/store/project-store"
+import SurveySteps from "@/components/survey/SurveySteps"
 
 // 데모 데이터
 const DEMO_VARIABLES = [
@@ -105,8 +106,9 @@ export default function SurveyDataPage() {
                 <ArrowLeft className="size-4" />
               </Button>
             </Link>
-            <h1 className="text-xl font-bold">응답 DB 뷰</h1>
+            <h1 className="text-xl font-bold">응답 데이터</h1>
           </div>
+          <SurveySteps current={4} />
           <div className="flex gap-2">
             <Button variant="outline">
               <Download className="size-4" />

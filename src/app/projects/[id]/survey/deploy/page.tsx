@@ -1,15 +1,17 @@
 "use client"
 
-import { useState, useCallback, useEffect, useRef } from "react"
+import { useState, useCallback } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   ArrowLeft, Plus, Trash2, Copy, Check, QrCode, ExternalLink, Rocket,
+  AlertTriangle, Info, StopCircle,
 } from "lucide-react"
 import QRCode from "qrcode"
 import { generateGroupToken } from "@/lib/utils/token"
+import SurveySteps from "@/components/survey/SurveySteps"
 
 interface GroupLink {
   id: string
@@ -24,18 +26,26 @@ export default function SurveyDeployPage() {
   const formId = projectId // 임시: formId = projectId
 
   const [title, setTitle] = useState('연구 설문조사')
+  const [titleError, setTitleError] = useState(false)
   const [description, setDescription] = useState('')
   const [targetResponses, setTargetResponses] = useState(200)
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
   const [preventDuplicate, setPreventDuplicate] = useState(true)
   const [groups, setGroups] = useState<GroupLink[]>([])
   const [newGroupName, setNewGroupName] = useState('')
   const [deployed, setDeployed] = useState(false)
+  const [closed, setClosed] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+
+  // 모달
+  const [showStartModal, setShowStartModal] = useState(false)
+  const [showEndModal, setShowEndModal] = useState(false)
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
   const surveyUrl = `${baseUrl}/survey/${formId}`
+
+  // 데모 문항 수 (실제로는 스토어에서 가져옴)
+  const questionCount = 15
+  const pageCount = 3
 
   // 그룹 추가
   const addGroup = useCallback(() => {
@@ -75,10 +85,28 @@ export default function SurveyDeployPage() {
     link.click()
   }, [])
 
-  // 배포 시작
-  const handleDeploy = useCallback(() => {
+  // 수집 시작 전 유효성 검사
+  const handleStartClick = useCallback(() => {
+    if (!title.trim()) {
+      setTitleError(true)
+      return
+    }
+    setTitleError(false)
+    setShowStartModal(true)
+  }, [title])
+
+  // 수집 시작 확정
+  const handleConfirmStart = useCallback(() => {
     setDeployed(true)
-    // TODO: Supabase에 설문 상태 업데이트
+    setShowStartModal(false)
+    // TODO: Supabase에 설문 상태 업데이트 (status: 'active')
+  }, [])
+
+  // 수집 종료
+  const handleEndCollection = useCallback(() => {
+    setClosed(true)
+    setShowEndModal(false)
+    // TODO: Supabase에 설문 상태 업데이트 (status: 'closed')
   }, [])
 
   return (
@@ -91,8 +119,9 @@ export default function SurveyDeployPage() {
                 <ArrowLeft className="size-4" />
               </Button>
             </Link>
-            <h1 className="text-xl font-bold">배포 설정</h1>
+            <h1 className="text-xl font-bold">설문 설정</h1>
           </div>
+          <SurveySteps current={2} />
         </div>
       </header>
 
@@ -105,12 +134,23 @@ export default function SurveyDeployPage() {
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
               <label className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">설문 제목</span>
+                <span className="text-xs text-muted-foreground">
+                  설문 제목 <span className="text-red-500">*</span>
+                </span>
                 <input
-                  className="rounded-md border bg-background px-3 py-2 text-sm"
+                  className={`rounded-md border bg-background px-3 py-2 text-sm ${
+                    titleError ? 'border-red-400 ring-1 ring-red-400' : ''
+                  }`}
                   value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  onChange={(e) => {
+                    setTitle(e.target.value)
+                    if (e.target.value.trim()) setTitleError(false)
+                  }}
+                  placeholder="설문 제목을 입력하세요"
                 />
+                {titleError && (
+                  <span className="text-xs text-red-500">설문 제목을 입력해주세요.</span>
+                )}
               </label>
               <label className="flex flex-col gap-1">
                 <span className="text-xs text-muted-foreground">설문 설명</span>
@@ -121,7 +161,7 @@ export default function SurveyDeployPage() {
                   placeholder="응답자에게 표시할 설문 설명을 입력하세요"
                 />
               </label>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <label className="flex flex-col gap-1">
                   <span className="text-xs text-muted-foreground">목표 응답 수</span>
                   <input
@@ -132,34 +172,16 @@ export default function SurveyDeployPage() {
                     onChange={(e) => setTargetResponses(Number(e.target.value))}
                   />
                 </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-xs text-muted-foreground">시작일</span>
+                <label className="flex items-end gap-2 pb-2">
                   <input
-                    type="date"
-                    className="rounded-md border bg-background px-3 py-2 text-sm"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
+                    type="checkbox"
+                    checked={preventDuplicate}
+                    onChange={(e) => setPreventDuplicate(e.target.checked)}
+                    className="size-4 rounded border"
                   />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-xs text-muted-foreground">마감일</span>
-                  <input
-                    type="date"
-                    className="rounded-md border bg-background px-3 py-2 text-sm"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                  />
+                  <span className="text-sm">중복 응답 방지 (토큰 기반)</span>
                 </label>
               </div>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={preventDuplicate}
-                  onChange={(e) => setPreventDuplicate(e.target.checked)}
-                  className="size-4 rounded border"
-                />
-                <span className="text-sm">중복 응답 방지 (토큰 기반)</span>
-              </label>
             </CardContent>
           </Card>
 
@@ -169,10 +191,17 @@ export default function SurveyDeployPage() {
               <CardTitle className="text-base">그룹 링크</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
-              <p className="text-xs text-muted-foreground">
-                그룹별 고유 링크를 생성하면 응답자의 소속 그룹이 자동으로 태깅됩니다.
-                HLM/다층분석 시 집단 변수로 활용됩니다.
-              </p>
+              {/* 안내 문구 */}
+              <div className="flex gap-2 rounded-lg border border-blue-100 bg-blue-50/50 p-3">
+                <Info className="mt-0.5 size-4 shrink-0 text-blue-500" />
+                <div className="text-xs leading-relaxed text-blue-700">
+                  <p className="font-medium">그룹 링크가 필요하신가요?</p>
+                  <p className="mt-1">
+                    동일한 설문을 여러 팀/조직에 배포하고 HLM 다층분석을 계획하신다면
+                    그룹 링크를 추가하세요. 그룹 링크 없이 배포하면 단일 링크로 수집됩니다.
+                  </p>
+                </div>
+              </div>
 
               {/* 그룹 추가 */}
               <div className="flex gap-2">
@@ -253,22 +282,47 @@ export default function SurveyDeployPage() {
 
               {groups.length === 0 && (
                 <p className="text-xs text-muted-foreground">
-                  그룹 없이 배포하면 단일 링크로 모든 응답을 수집합니다.
+                  그룹 없이 수집하면 단일 링크로 모든 응답을 수집합니다.
                 </p>
               )}
             </CardContent>
           </Card>
 
-          {/* 배포 */}
+          {/* 수집 시작 / 수집 중 / 수집 종료 */}
           {!deployed ? (
-            <Button onClick={handleDeploy} size="lg" className="w-full">
+            <Button onClick={handleStartClick} size="lg" className="w-full">
               <Rocket className="size-4" />
-              배포 시작
+              수집 시작
             </Button>
+          ) : closed ? (
+            <Card className="border-slate-300 bg-slate-50">
+              <CardContent className="py-6 text-center">
+                <StopCircle className="mx-auto mb-2 size-8 text-slate-400" />
+                <p className="text-sm font-medium text-slate-500">수집이 종료되었습니다</p>
+                <p className="mt-1 text-xs text-slate-400">링크가 비활성화되어 더 이상 응답을 받지 않습니다.</p>
+                <Link href={`/projects/${projectId}/survey/dashboard`}>
+                  <Button variant="outline" className="mt-4">
+                    <ExternalLink className="size-4" />
+                    수집 현황으로 이동
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
           ) : (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base text-green-600">배포 완료</CardTitle>
+                <CardTitle className="flex items-center justify-between text-base text-green-600">
+                  <span>수집 중</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowEndModal(true)}
+                    className="text-red-500 hover:bg-red-50 hover:text-red-600"
+                  >
+                    <StopCircle className="size-3.5" />
+                    수집 종료
+                  </Button>
+                </CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 {/* 기본 링크 */}
@@ -331,7 +385,7 @@ export default function SurveyDeployPage() {
                 <Link href={`/projects/${projectId}/survey/dashboard`}>
                   <Button variant="outline" className="w-full">
                     <ExternalLink className="size-4" />
-                    응답 현황 대시보드로 이동
+                    수집 현황으로 이동
                   </Button>
                 </Link>
               </CardContent>
@@ -339,6 +393,75 @@ export default function SurveyDeployPage() {
           )}
         </div>
       </main>
+
+      {/* 수집 시작 확인 모달 */}
+      {showStartModal && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setShowStartModal(false)} />
+          <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border bg-white p-6 shadow-lg">
+            <h3 className="text-base font-semibold text-[#1E2A3A]">
+              설문을 시작하기 전에 확인해주세요
+            </h3>
+            <div className="mt-4 flex flex-col gap-2">
+              <div className="flex items-center gap-2 text-sm text-[#1E2A3A]">
+                <Check className="size-4 text-emerald-500" />
+                문항 수: {questionCount}개 ({pageCount}페이지)
+              </div>
+              <div className="flex items-center gap-2 text-sm text-[#1E2A3A]">
+                <Check className="size-4 text-emerald-500" />
+                그룹 링크: {groups.length > 0 ? `${groups.length}개` : '단일 링크'}
+              </div>
+            </div>
+            <div className="mt-4 flex items-start gap-2 rounded-md bg-amber-50 p-3">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-500" />
+              <p className="text-xs leading-relaxed text-amber-700">
+                수집 시작 후 문항을 수정하면 기존 응답 데이터와 불일치가 발생할 수 있습니다.
+                문항 수정이 필요한 경우 새 설문을 만드는 것을 권장합니다.
+              </p>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowStartModal(false)}>
+                취소
+              </Button>
+              <Button onClick={handleConfirmStart}>
+                <Rocket className="size-4" />
+                수집 시작
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* 수집 종료 확인 모달 */}
+      {showEndModal && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setShowEndModal(false)} />
+          <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border bg-white p-6 shadow-lg">
+            <h3 className="text-base font-semibold text-[#1E2A3A]">
+              수집을 종료하시겠습니까?
+            </h3>
+            <div className="mt-4 flex items-start gap-2 rounded-md bg-red-50 p-3">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-red-500" />
+              <p className="text-xs leading-relaxed text-red-700">
+                수집을 종료하면 링크가 비활성화되고 더 이상 응답을 받지 않습니다.
+                종료 후에는 다시 활성화할 수 없습니다.
+              </p>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowEndModal(false)}>
+                취소
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleEndCollection}
+              >
+                <StopCircle className="size-4" />
+                수집 종료
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

@@ -6,6 +6,7 @@ import { useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, Users, CheckCircle, Clock, AlertTriangle } from "lucide-react"
+import SurveySteps from "@/components/survey/SurveySteps"
 
 // 데모 데이터
 const DEMO_STATS = {
@@ -59,10 +60,11 @@ export default function SurveyDashboardPage() {
                 <ArrowLeft className="size-4" />
               </Button>
             </Link>
-            <h1 className="text-xl font-bold">응답 현황</h1>
+            <h1 className="text-xl font-bold">수집 현황</h1>
           </div>
+          <SurveySteps current={3} />
           <Link href={`/projects/${projectId}/survey/data`}>
-            <Button variant="outline">응답 DB 뷰</Button>
+            <Button variant="outline">응답 데이터</Button>
           </Link>
         </div>
       </header>

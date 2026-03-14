@@ -1,45 +1,33 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, ArrowRight, Download, AlertTriangle } from "lucide-react"
+import { ArrowLeft, ArrowRight, Download, AlertTriangle, Info, Inbox, Copy, Check } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 import { useProjectStore } from "@/lib/store/project-store"
 import SurveySteps from "@/components/survey/SurveySteps"
 
-// 데모 데이터
-const DEMO_VARIABLES = [
-  {
-    name: '직무만족',
-    items: [
-      { name: 'q1', mean: 3.42, sd: 0.95, min: 1, max: 5, missing: 2, skewness: -0.12, kurtosis: 0.34 },
-      { name: 'q2', mean: 3.65, sd: 0.88, min: 1, max: 5, missing: 0, skewness: -0.23, kurtosis: -0.15 },
-      { name: 'q3', mean: 3.18, sd: 1.02, min: 1, max: 5, missing: 1, skewness: 0.08, kurtosis: -0.42, isReversed: true, originalMean: 2.82 },
-    ],
-    compositeMean: 3.42,
-  },
-  {
-    name: '조직몰입',
-    items: [
-      { name: 'q4', mean: 3.58, sd: 0.92, min: 1, max: 5, missing: 0, skewness: -0.31, kurtosis: 0.12 },
-      { name: 'q5', mean: 3.71, sd: 0.85, min: 1, max: 5, missing: 3, skewness: -0.45, kurtosis: 0.28 },
-    ],
-    compositeMean: 3.65,
-  },
-]
+interface QuestionMeta {
+  id: string
+  questionText: string
+  orderIndex: number
+  isReversed: boolean
+  latentVariableId?: string
+}
 
-const DEMO_GROUP_COMPARISON = [
-  { group: '1팀', '직무만족': 3.52, '조직몰입': 3.78 },
-  { group: '2팀', '직무만족': 3.31, '조직몰입': 3.45 },
-  { group: '3팀', '직무만족': 3.48, '조직몰입': 3.72 },
-]
+interface ResponseRow {
+  responseNumber: number
+  completedAt: string
+  groupName?: string
+  values: (number | string | null)[]
+}
 
-interface QualityWarning {
-  variable: string
-  item: string
-  type: 'missing' | 'skewness' | 'kurtosis' | 'variance'
+interface ColumnWarning {
+  column: string
+  type: "missing" | "variance" | "normality"
   message: string
 }
 
@@ -47,59 +35,232 @@ export default function SurveyDataPage() {
   const params = useParams()
   const router = useRouter()
   const projectId = params.id as string
-  const [activeTab, setActiveTab] = useState(0)
-  const [showGroups, setShowGroups] = useState(false)
+  const formId = projectId // 임시
 
-  // 데이터 품질 경고 계산
-  const warnings: QualityWarning[] = []
-  const totalN = 128
-  DEMO_VARIABLES.forEach((v) => {
-    v.items.forEach((item) => {
-      if (item.missing / totalN > 0.1) {
-        warnings.push({ variable: v.name, item: item.name, type: 'missing', message: `결측치 ${((item.missing / totalN) * 100).toFixed(1)}% (기준: 10%)` })
-      }
-      if (Math.abs(item.skewness) > 2) {
-        warnings.push({ variable: v.name, item: item.name, type: 'skewness', message: `왜도 ${item.skewness.toFixed(2)} (기준: |2|)` })
-      }
-      if (Math.abs(item.kurtosis) > 7) {
-        warnings.push({ variable: v.name, item: item.name, type: 'kurtosis', message: `첨도 ${item.kurtosis.toFixed(2)} (기준: |7|)` })
-      }
-    })
-  })
-
-  // HLM 집단 수 경고
-  const groupCount = DEMO_GROUP_COMPARISON.length
-  const hlmWarnings: string[] = []
-  if (groupCount < 30) {
-    hlmWarnings.push(`현재 집단 수: ${groupCount}개. HLM 적용 시 통계적 검정력이 낮을 수 있습니다 (권장: 30개 이상).`)
-  }
-
+  const [questions, setQuestions] = useState<QuestionMeta[]>([])
+  const [rows, setRows] = useState<ResponseRow[]>([])
+  const [hasGroups, setHasGroups] = useState(false)
+  const [warnings, setWarnings] = useState<ColumnWarning[]>([])
+  const [loading, setLoading] = useState(true)
   const [connecting, setConnecting] = useState(false)
-  const [connectMessage, setConnectMessage] = useState<string | null>(null)
+  const [copiedLink, setCopiedLink] = useState(false)
 
-  // 분석 시작 — 설문 데이터 캔버스 자동 연결
-  const handleStartAnalysis = () => {
+  // 데이터 로드
+  const loadData = useCallback(async () => {
+    const supabase = createClient()
+
+    try {
+      // 문항 조회
+      const { data: questionData } = await supabase
+        .from("survey_questions")
+        .select("id, question_text, order_index, is_reversed, latent_variable_id")
+        .eq("form_id", formId)
+        .order("order_index")
+
+      const qs: QuestionMeta[] = (questionData ?? []).map((q) => ({
+        id: q.id as string,
+        questionText: q.question_text as string,
+        orderIndex: q.order_index as number,
+        isReversed: q.is_reversed as boolean,
+        latentVariableId: q.latent_variable_id as string | undefined,
+      }))
+      setQuestions(qs)
+
+      // 완료된 응답 + 응답 항목 조회
+      const { data: responses } = await supabase
+        .from("survey_responses")
+        .select(`
+          id,
+          group_id,
+          completed_at,
+          survey_response_items (
+            question_id,
+            value_numeric,
+            value_text
+          )
+        `)
+        .eq("form_id", formId)
+        .eq("is_complete", true)
+        .order("completed_at")
+
+      // 그룹 정보
+      const { data: groups } = await supabase
+        .from("survey_groups")
+        .select("id, name")
+        .eq("form_id", formId)
+
+      const groupMap = new Map<string, string>()
+      ;(groups ?? []).forEach((g) => groupMap.set(g.id as string, g.name as string))
+      const hasGroupLinks = groupMap.size > 0
+      setHasGroups(hasGroupLinks)
+
+      // 행 데이터 구성
+      const dataRows: ResponseRow[] = (responses ?? []).map((r, idx) => {
+        const itemMap = new Map<string, { value_numeric: number | null; value_text: string | null }>()
+        ;(r.survey_response_items as { question_id: string; value_numeric: number | null; value_text: string | null }[])
+          ?.forEach((item) => {
+            itemMap.set(item.question_id, item)
+          })
+
+        const values: (number | string | null)[] = qs.map((q) => {
+          const item = itemMap.get(q.id)
+          if (!item) return null
+          return item.value_numeric ?? item.value_text ?? null
+        })
+
+        return {
+          responseNumber: idx + 1,
+          completedAt: r.completed_at
+            ? new Date(r.completed_at as string).toLocaleString("ko-KR", {
+                month: "2-digit", day: "2-digit",
+                hour: "2-digit", minute: "2-digit",
+              })
+            : "-",
+          groupName: r.group_id ? groupMap.get(r.group_id as string) : undefined,
+          values,
+        }
+      })
+      setRows(dataRows)
+
+      // 데이터 품질 경고 계산
+      const colWarnings: ColumnWarning[] = []
+      if (dataRows.length > 0) {
+        qs.forEach((q, colIdx) => {
+          const colValues = dataRows.map((r) => r.values[colIdx])
+          const missing = colValues.filter((v) => v === null).length
+          const missingRate = missing / dataRows.length
+
+          // 결측치 > 10%
+          if (missingRate > 0.1) {
+            colWarnings.push({
+              column: `Q${q.orderIndex + 1}`,
+              type: "missing",
+              message: `결측치 ${(missingRate * 100).toFixed(1)}% (기준: 10%)`,
+            })
+          }
+
+          // 분산 = 0
+          const numericValues = colValues.filter((v): v is number => typeof v === "number")
+          if (numericValues.length > 1) {
+            const mean = numericValues.reduce((a, b) => a + b, 0) / numericValues.length
+            const variance = numericValues.reduce((a, b) => a + (b - mean) ** 2, 0) / numericValues.length
+            if (variance === 0) {
+              colWarnings.push({
+                column: `Q${q.orderIndex + 1}`,
+                type: "variance",
+                message: "분산이 0입니다 (모든 응답이 동일)",
+              })
+            }
+
+            // 정규성 의심 (왜도 > 2)
+            if (numericValues.length >= 30) {
+              const sd = Math.sqrt(variance)
+              if (sd > 0) {
+                const skewness = numericValues.reduce((a, b) => a + ((b - mean) / sd) ** 3, 0) / numericValues.length
+                if (Math.abs(skewness) > 2) {
+                  colWarnings.push({
+                    column: `Q${q.orderIndex + 1}`,
+                    type: "normality",
+                    message: `왜도 ${skewness.toFixed(2)} (정규성 위반 의심)`,
+                  })
+                }
+              }
+            }
+          }
+        })
+      }
+      setWarnings(colWarnings)
+    } catch {
+      // DB 연결 실패 시 빈 상태
+    } finally {
+      setLoading(false)
+    }
+  }, [formId])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  // 분석 시작
+  const handleStartAnalysis = useCallback(() => {
     setConnecting(true)
-    setConnectMessage(null)
-
-    // 실제로는 autoConnectSurveyToCanvas 호출
-    // 현재 데모 데이터이므로 바로 이동
     const uploadedData = useProjectStore.getState().uploadedData
-    const rowCount = uploadedData?.rowCount ?? totalN
-
+    const rowCount = uploadedData?.rowCount ?? rows.length
     setTimeout(() => {
       setConnecting(false)
-      setConnectMessage(`데이터 ${rowCount}행이 캔버스에 연결되었습니다.`)
-      setTimeout(() => {
-        router.push(`/projects/${projectId}/canvas`)
-      }, 1000)
-    }, 500)
+      router.push(`/projects/${projectId}/canvas`)
+    }, 300)
+  }, [rows.length, projectId, router])
+
+  // 링크 복사
+  const handleCopyLink = useCallback(async () => {
+    const baseUrl = typeof window !== "undefined" ? window.location.origin : ""
+    const url = `${baseUrl}/survey/${formId}`
+    await navigator.clipboard.writeText(url)
+    setCopiedLink(true)
+    setTimeout(() => setCopiedLink(false), 2000)
+  }, [formId])
+
+  // Excel 다운로드
+  const handleDownload = useCallback(() => {
+    if (rows.length === 0 || questions.length === 0) return
+
+    const headers = [
+      "번호", "완료시각",
+      ...(hasGroups ? ["그룹"] : []),
+      ...questions.map((q) => `Q${q.orderIndex + 1}${q.isReversed ? "(R)" : ""}`),
+    ]
+
+    const csvRows = rows.map((r) => [
+      r.responseNumber,
+      r.completedAt,
+      ...(hasGroups ? [r.groupName ?? ""] : []),
+      ...r.values.map((v) => (v === null ? "" : String(v))),
+    ])
+
+    const csv = [headers.join(","), ...csvRows.map((r) => r.join(","))].join("\n")
+    const bom = "\uFEFF"
+    const blob = new Blob([bom + csv], { type: "text/csv;charset=utf-8;" })
+    const link = document.createElement("a")
+    link.href = URL.createObjectURL(blob)
+    link.download = `survey_responses_${formId}.csv`
+    link.click()
+    URL.revokeObjectURL(link.href)
+  }, [rows, questions, hasGroups, formId])
+
+  // 전체 결측치 비율
+  const totalCells = rows.length * questions.length
+  const totalMissing = rows.reduce(
+    (acc, r) => acc + r.values.filter((v) => v === null).length, 0
+  )
+  const missingRate = totalCells > 0 ? ((totalMissing / totalCells) * 100).toFixed(1) : "0"
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="border-b">
+          <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+            <div className="flex items-center gap-3">
+              <Link href={`/projects/${projectId}/survey/dashboard`}>
+                <Button variant="ghost" size="icon-sm"><ArrowLeft className="size-4" /></Button>
+              </Link>
+              <h1 className="text-xl font-bold">응답 데이터</h1>
+            </div>
+            <SurveySteps current={4} />
+            <div />
+          </div>
+        </header>
+        <main className="flex items-center justify-center py-20">
+          <p className="text-sm text-muted-foreground">데이터를 불러오는 중...</p>
+        </main>
+      </div>
+    )
   }
 
   return (
     <div className="min-h-screen bg-background pb-20">
       <header className="border-b">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
             <Link href={`/projects/${projectId}/survey/dashboard`}>
               <Button variant="ghost" size="icon-sm">
@@ -110,14 +271,12 @@ export default function SurveyDataPage() {
           </div>
           <SurveySteps current={4} />
           <div className="flex gap-2">
-            <Button variant="outline">
+            <Button variant="outline" onClick={handleDownload} disabled={rows.length === 0}>
               <Download className="size-4" />
-              데이터 다운로드
+              Excel 다운로드
             </Button>
-            <Button onClick={handleStartAnalysis} disabled={connecting}>
-              {connecting ? (
-                <>연결 중...</>
-              ) : (
+            <Button onClick={handleStartAnalysis} disabled={connecting || rows.length === 0}>
+              {connecting ? "연결 중..." : (
                 <>
                   분석 시작
                   <ArrowRight className="size-4" />
@@ -128,156 +287,144 @@ export default function SurveyDataPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-6 py-8">
-        <div className="flex flex-col gap-6">
-          {/* 연결 완료 메시지 */}
-          {connectMessage && (
-            <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-800 dark:bg-green-950">
-              <ArrowRight className="size-4 text-green-600" />
-              <p className="text-sm font-medium text-green-700 dark:text-green-300">{connectMessage}</p>
-            </div>
-          )}
-
-          {/* 데이터 품질 경고 */}
-          {(warnings.length > 0 || hlmWarnings.length > 0) && (
-            <Card className="border-amber-200 bg-amber-50/50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-sm text-amber-700">
-                  <AlertTriangle className="size-4" />
-                  데이터 품질 경고
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-1">
-                {warnings.map((w, i) => (
-                  <p key={i} className="text-xs text-amber-700">
-                    {w.variable} &gt; {w.item}: {w.message}
-                  </p>
-                ))}
-                {hlmWarnings.map((w, i) => (
-                  <p key={`hlm-${i}`} className="text-xs font-medium text-amber-700">
-                    ⚠ {w}
-                  </p>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* 잠재변수 탭 */}
-          <div className="border-b">
-            <div className="flex">
-              {DEMO_VARIABLES.map((v, i) => (
-                <button
-                  key={v.name}
-                  type="button"
-                  onClick={() => setActiveTab(i)}
-                  className={`border-b-2 px-4 py-2 text-sm font-medium ${
-                    activeTab === i
-                      ? 'border-primary text-primary'
-                      : 'border-transparent text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {v.name}
-                </button>
-              ))}
-            </div>
+      <main className="mx-auto max-w-7xl px-6 py-8">
+        {/* 빈 상태 */}
+        {rows.length === 0 && questions.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20">
+            <Inbox className="mb-3 size-12 text-slate-200" />
+            <h3 className="text-base font-semibold text-[#1E2A3A]">아직 응답이 없습니다</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              수집 링크를 공유해보세요.
+            </p>
+            <Button
+              variant="outline"
+              className="mt-4"
+              onClick={handleCopyLink}
+            >
+              {copiedLink ? <Check className="size-4 text-emerald-500" /> : <Copy className="size-4" />}
+              {copiedLink ? "복사됨" : "수집 링크 복사"}
+            </Button>
           </div>
-
-          {/* 문항별 통계 */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm">
-                  {DEMO_VARIABLES[activeTab].name} — 문항별 통계
-                </CardTitle>
-                <span className="text-xs text-muted-foreground">
-                  합산 평균: {DEMO_VARIABLES[activeTab].compositeMean.toFixed(2)}
+        ) : (
+          <div className="flex flex-col gap-6">
+            {/* 상단 요약 바 */}
+            <div className="flex items-center gap-6 rounded-lg border bg-slate-50/50 px-5 py-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400">전체</span>
+                <span className="text-sm font-semibold text-[#1E2A3A]">{rows.length}행</span>
+              </div>
+              <div className="h-4 w-px bg-slate-200" />
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400">변수</span>
+                <span className="text-sm font-semibold text-[#1E2A3A]">{questions.length}개</span>
+              </div>
+              <div className="h-4 w-px bg-slate-200" />
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400">결측치</span>
+                <span className={`text-sm font-semibold ${
+                  Number(missingRate) > 10 ? "text-red-500" : "text-[#1E2A3A]"
+                }`}>
+                  {missingRate}%
                 </span>
               </div>
-            </CardHeader>
-            <CardContent>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="py-2 text-left font-medium">문항</th>
-                    <th className="py-2 text-right font-medium">평균</th>
-                    <th className="py-2 text-right font-medium">SD</th>
-                    <th className="py-2 text-right font-medium">최솟값</th>
-                    <th className="py-2 text-right font-medium">최댓값</th>
-                    <th className="py-2 text-right font-medium">결측치</th>
-                    <th className="py-2 text-right font-medium">비고</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {DEMO_VARIABLES[activeTab].items.map((item) => (
-                    <tr key={item.name} className="border-b last:border-0">
-                      <td className="py-2">{item.name}</td>
-                      <td className="py-2 text-right">{item.mean.toFixed(2)}</td>
-                      <td className="py-2 text-right">{item.sd.toFixed(2)}</td>
-                      <td className="py-2 text-right">{item.min}</td>
-                      <td className="py-2 text-right">{item.max}</td>
-                      <td className="py-2 text-right">{item.missing}</td>
-                      <td className="py-2 text-right text-xs">
-                        {item.isReversed && (
-                          <span className="text-amber-600">
-                            역문항 (원: {item.originalMean?.toFixed(2)})
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* 그룹별 비교 */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm">그룹별 비교</CardTitle>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={showGroups}
-                    onChange={(e) => setShowGroups(e.target.checked)}
-                    className="size-4 rounded border"
-                  />
-                  <span className="text-xs text-muted-foreground">그룹별 표시</span>
-                </label>
+            {/* 데이터 품질 경고 */}
+            {warnings.length > 0 && (
+              <div className="flex flex-col gap-2">
+                {warnings.filter((w) => w.type === "missing" || w.type === "variance").map((w, i) => (
+                  <div key={i} className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2">
+                    <AlertTriangle className="size-4 shrink-0 text-amber-500" />
+                    <span className="text-xs text-amber-700">
+                      {w.column}: {w.message}
+                    </span>
+                  </div>
+                ))}
+                {warnings.filter((w) => w.type === "normality").map((w, i) => (
+                  <div key={`n-${i}`} className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2">
+                    <Info className="size-4 shrink-0 text-blue-500" />
+                    <span className="text-xs text-blue-700">
+                      {w.column}: {w.message}
+                    </span>
+                  </div>
+                ))}
               </div>
-            </CardHeader>
-            <CardContent>
-              {showGroups ? (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="py-2 text-left font-medium">그룹</th>
-                      {DEMO_VARIABLES.map((v) => (
-                        <th key={v.name} className="py-2 text-right font-medium">{v.name}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {DEMO_GROUP_COMPARISON.map((g) => (
-                      <tr key={g.group} className="border-b last:border-0">
-                        <td className="py-2 font-medium">{g.group}</td>
-                        {DEMO_VARIABLES.map((v) => (
-                          <td key={v.name} className="py-2 text-right">
-                            {(g[v.name as keyof typeof g] as number)?.toFixed(2) ?? '-'}
-                          </td>
+            )}
+
+            {/* 전체 응답 테이블 */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">전체 응답 데이터</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-max text-xs">
+                    <thead className="sticky top-0 z-10 bg-white">
+                      <tr className="border-b">
+                        <th className="sticky left-0 z-20 bg-white px-3 py-2.5 text-left font-medium text-slate-500">
+                          #
+                        </th>
+                        <th className="px-3 py-2.5 text-left font-medium text-slate-500">
+                          완료 시각
+                        </th>
+                        {hasGroups && (
+                          <th className="px-3 py-2.5 text-left font-medium text-slate-500">
+                            그룹
+                          </th>
+                        )}
+                        {questions.map((q) => (
+                          <th
+                            key={q.id}
+                            className="px-3 py-2.5 text-center font-medium text-slate-500"
+                            title={q.questionText}
+                          >
+                            <span className="flex items-center justify-center gap-1">
+                              Q{q.orderIndex + 1}
+                              {q.isReversed && (
+                                <span className="rounded bg-amber-100 px-1 text-[9px] font-semibold text-amber-600">
+                                  R
+                                </span>
+                              )}
+                            </span>
+                          </th>
                         ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  그룹별 표시를 활성화하면 집단 간 평균 비교를 확인할 수 있습니다.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                    </thead>
+                    <tbody>
+                      {rows.map((row) => (
+                        <tr key={row.responseNumber} className="border-b last:border-0 hover:bg-slate-50/50">
+                          <td className="sticky left-0 z-10 bg-white px-3 py-2 font-medium text-[#1E2A3A]">
+                            {row.responseNumber}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2 text-slate-500">
+                            {row.completedAt}
+                          </td>
+                          {hasGroups && (
+                            <td className="px-3 py-2 text-slate-500">
+                              {row.groupName ?? "-"}
+                            </td>
+                          )}
+                          {row.values.map((val, ci) => (
+                            <td
+                              key={ci}
+                              className={`px-3 py-2 text-center ${
+                                val === null
+                                  ? "bg-red-50 text-red-300"
+                                  : "text-[#1E2A3A]"
+                              }`}
+                            >
+                              {val === null ? "-" : String(val)}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </main>
     </div>
   )

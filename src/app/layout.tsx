@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Noto_Sans_KR } from "next/font/google";
 import "./globals.css";
+import AppShell from "@/components/layout/AppShell";
 
 const notoSansKR = Noto_Sans_KR({
   variable: "--font-sans",
@@ -21,7 +22,7 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body className={`${notoSansKR.variable} antialiased bg-background`}>
-        {children}
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

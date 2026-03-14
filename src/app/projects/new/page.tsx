@@ -2,10 +2,8 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useProjectStore } from "@/lib/store/project-store"
 
 export default function NewProjectPage() {
@@ -17,48 +15,38 @@ export default function NewProjectPage() {
     e.preventDefault()
     if (!name.trim()) return
 
-    // 임시 ID 생성 (Supabase 인증 연동 전)
     const tempId = `proj_${Date.now()}`
     setProject(tempId, name.trim())
     router.push(`/projects/${tempId}/onboarding`)
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b">
-        <div className="mx-auto flex max-w-5xl items-center px-6 py-4">
-          <Link href="/projects" className="text-xl font-bold">
-            H.Research
-          </Link>
-        </div>
-      </header>
+    <div className="flex items-center justify-center p-6" style={{ minHeight: "calc(100vh - 52px)" }}>
+      <div className="w-full max-w-md">
+        <div className="rounded-xl border border-slate-200 bg-white p-6">
+          <h1 className="mb-1 text-lg font-bold text-[#1E2A3A]">새 프로젝트 만들기</h1>
+          <p className="mb-6 text-sm text-slate-500">프로젝트 이름을 입력하세요.</p>
 
-      <main className="mx-auto max-w-lg px-6 py-16">
-        <Card>
-          <CardHeader>
-            <CardTitle>새 프로젝트 만들기</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              <div>
-                <label htmlFor="project-name" className="mb-1.5 block text-sm font-medium">
-                  프로젝트 이름
-                </label>
-                <Input
-                  id="project-name"
-                  placeholder="예: 조직몰입 매개효과 연구"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  autoFocus
-                />
-              </div>
-              <Button type="submit" disabled={!name.trim()}>
-                프로젝트 생성
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </main>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <div>
+              <label htmlFor="project-name" className="mb-1.5 block text-sm font-medium text-[#1E2A3A]">
+                프로젝트 이름
+              </label>
+              <Input
+                id="project-name"
+                placeholder="예: 조직몰입 매개효과 연구"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoFocus
+                className="h-10"
+              />
+            </div>
+            <Button type="submit" disabled={!name.trim()} className="h-10">
+              프로젝트 생성
+            </Button>
+          </form>
+        </div>
+      </div>
     </div>
   )
 }

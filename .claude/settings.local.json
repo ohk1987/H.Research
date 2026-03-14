@@ -25,7 +25,9 @@
       "Bash(cd D:/H.Research && npm run build 2>&1 | tail -80)",
       "Bash(find /d/H.Research/src/app/projects -type f -name \"*.tsx\" 2>/dev/null | head -10)",
       "Bash(cd \"D:/H.Research\" && npm run build 2>&1 | tail -80)",
-      "Bash(find /d/H.Research/src -name \"*canvas*\" -o -name \"*model*\" | grep -E \"\\\\.\\(ts|tsx\\)$\" | head -20)"
+      "Bash(find /d/H.Research/src -name \"*canvas*\" -o -name \"*model*\" | grep -E \"\\\\.\\(ts|tsx\\)$\" | head -20)",
+      "Bash(cd D:/H.Research && npm run build 2>&1 | tail -60)",
+      "Bash(cd D:/H.Research && npx next build 2>&1 | tail -80)"
     ]
   }
 }

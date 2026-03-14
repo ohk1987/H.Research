@@ -6,6 +6,7 @@ import { Tooltip } from "@/components/ui/tooltip"
 import { useProjectStore } from "@/lib/store/project-store"
 import type { Node, Edge } from "@xyflow/react"
 import type { LatentVariableNodeData } from "./nodes/LatentVariableNode"
+import type { ModeratorNodeData } from "./nodes/ModeratorNode"
 import type { AnalysisOptions } from "@/types/analysis"
 
 interface SidePanelProps {
@@ -43,6 +44,8 @@ export default function SidePanel({
           />
         ) : selectedNode?.type === "latentVariable" ? (
           <LatentInfo node={selectedNode} latentVariables={latentVariables} />
+        ) : selectedNode?.type === "moderator" ? (
+          <ModeratorInfo node={selectedNode} />
         ) : (
           <ObservedInfo node={selectedNode} />
         )}
@@ -239,6 +242,38 @@ function LatentInfo({
             </p>
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+function ModeratorInfo({ node }: { node: Node | null }) {
+  if (!node) return null
+  const nodeData = node.data as ModeratorNodeData
+
+  return (
+    <div className="p-4">
+      <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">조절변수 정보</h3>
+      <div className="flex flex-col gap-4">
+        <div>
+          <p className="text-xs text-slate-400">변수명</p>
+          <p className="mt-1 text-sm font-semibold text-[#1E2A3A]">{nodeData.label}</p>
+        </div>
+        <div>
+          <p className="text-xs text-slate-400">문항 수</p>
+          <p className="mt-1 text-sm text-[#1E2A3A]">{nodeData.itemCount}개</p>
+        </div>
+        <div>
+          <p className="text-xs text-slate-400">Cronbach&apos;s α</p>
+          <p className="mt-1 font-mono text-sm text-[#1E2A3A]">
+            {nodeData.alpha !== null ? nodeData.alpha.toFixed(3) : "미분석"}
+          </p>
+        </div>
+        <div className="rounded-md bg-amber-50 p-2">
+          <p className="text-xs text-amber-700">
+            조절변수에서 경로로 연결하면 조절효과 경로가 자동 생성됩니다.
+          </p>
+        </div>
       </div>
     </div>
   )

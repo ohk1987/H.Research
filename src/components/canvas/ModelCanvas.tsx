@@ -22,10 +22,12 @@ import "@xyflow/react/dist/style.css"
 
 import LatentVariableNode from "./nodes/LatentVariableNode"
 import ObservedVariableNode from "./nodes/ObservedVariableNode"
+import ModeratorNode from "./nodes/ModeratorNode"
 import { ModerationEdgeMemo, EdgeMarkerDefs } from "./EdgeTypes"
 import { StatEdgeMemo, StatEdgeMarkerDefs } from "./StatEdge"
-import ItemPanel from "./ItemPanel"
+import ItemPanel, { type NodeCreationType, type TemplateConfig, type NodeRole } from "./ItemPanel"
 import SidePanel from "./SidePanel"
+import NodeContextMenu from "./NodeContextMenu"
 import ModelRecognitionBar from "./ModelRecognitionBar"
 import VersionControl from "./VersionControl"
 import ResultPanel, { type AnalysisResultData } from "./ResultPanel"
@@ -36,17 +38,27 @@ import { useProjectStore } from "@/lib/store/project-store"
 import { DEFAULT_OPTIONS, type AnalysisOptions } from "@/types/analysis"
 import type { VariableColor } from "@/types/variables"
 import type { LatentVariableNodeData } from "./nodes/LatentVariableNode"
+import type { ModeratorNodeData } from "./nodes/ModeratorNode"
 import type { StatEdgeData } from "./StatEdge"
 import { Play, Send } from "lucide-react"
 
 const nodeTypes: NodeTypes = {
   latentVariable: LatentVariableNode,
   observedVariable: ObservedVariableNode,
+  moderator: ModeratorNode,
 }
 
 const edgeTypes: RFEdgeTypes = {
   moderation: ModerationEdgeMemo,
   stat: StatEdgeMemo,
+}
+
+// 역할 → 색상 매핑
+const ROLE_COLOR: Record<NodeRole, VariableColor> = {
+  independent: "blue",
+  mediator: "yellow",
+  moderator: "purple",
+  dependent: "green",
 }
 
 let nodeIdCounter = 0
@@ -72,6 +84,13 @@ export default function ModelCanvas() {
   const [newNodeName, setNewNodeName] = useState("")
   const [newNodeColor, setNewNodeColor] = useState<VariableColor>("blue")
 
+  // 컨텍스트 메뉴
+  const [contextMenu, setContextMenu] = useState<{
+    x: number
+    y: number
+    nodeId: string
+  } | null>(null)
+
   const reactFlowInstance = useRef<ReactFlowInstance | null>(null)
 
   const nodeVariableIds = new Set(
@@ -83,19 +102,31 @@ export default function ModelCanvas() {
   // 엣지 연결
   const onConnect = useCallback(
     (connection: Connection) => {
-      const newEdge = {
-        ...connection,
-        type: "stat",
-        markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
-        data: { analyzed: false } satisfies StatEdgeData,
-      }
+      // 조절변수에서 나오는 연결은 조절 경로로 생성
+      const sourceNode = nodes.find((n) => n.id === connection.source)
+      const isModerator = sourceNode?.type === "moderator"
+
+      const newEdge = isModerator
+        ? {
+            ...connection,
+            type: "moderation",
+            markerEnd: undefined,
+            data: { isModeration: true },
+          }
+        : {
+            ...connection,
+            type: "stat",
+            markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
+            data: { analyzed: false } satisfies StatEdgeData,
+          }
+
       setEdges((eds) => {
         const updated = addEdge(newEdge, eds)
         storeSetEdges(updated)
         return updated
       })
     },
-    [setEdges, storeSetEdges]
+    [setEdges, storeSetEdges, nodes]
   )
 
   const handleNodesChange: typeof onNodesChange = useCallback(
@@ -127,16 +158,29 @@ export default function ModelCanvas() {
   const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     setSelectedNode(node)
     setSelectedEdge(null)
+    setContextMenu(null)
   }, [])
 
   const onEdgeClick = useCallback((_: React.MouseEvent, edge: Edge) => {
     setSelectedEdge(edge)
     setSelectedNode(null)
+    setContextMenu(null)
   }, [])
 
   const onPaneClick = useCallback(() => {
     setSelectedNode(null)
     setSelectedEdge(null)
+    setContextMenu(null)
+  }, [])
+
+  // 노드 우클릭 → 컨텍스트 메뉴
+  const onNodeContextMenu = useCallback((event: React.MouseEvent, node: Node) => {
+    event.preventDefault()
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      nodeId: node.id,
+    })
   }, [])
 
   const onDoubleClick = useCallback(
@@ -180,12 +224,244 @@ export default function ModelCanvas() {
       storeSetNodes(updated)
       return updated
     })
+    return id
+  }
+
+  function createModeratorNode(
+    name: string,
+    position: { x: number; y: number }
+  ) {
+    const id = `node_${++nodeIdCounter}`
+    const newNode: Node = {
+      id,
+      type: "moderator",
+      position,
+      data: {
+        label: name,
+        variableId: `mod_${nodeIdCounter}`,
+        itemCount: 0,
+        alpha: null,
+      } satisfies ModeratorNodeData,
+    }
+    setNodes((nds) => {
+      const updated = [...nds, newNode]
+      storeSetNodes(updated)
+      return updated
+    })
+    return id
+  }
+
+  function createObservedNode(
+    name: string,
+    position: { x: number; y: number }
+  ) {
+    const id = `node_${++nodeIdCounter}`
+    const newNode: Node = {
+      id,
+      type: "observedVariable",
+      position,
+      data: {
+        label: name,
+        columnName: name,
+      },
+    }
+    setNodes((nds) => {
+      const updated = [...nds, newNode]
+      storeSetNodes(updated)
+      return updated
+    })
+    return id
   }
 
   function handleCreateNode() {
     if (!newNodeName.trim()) return
     createLatentNode(newNodeName.trim(), newNodeColor, createPosition, `manual_${nodeIdCounter}`, 0)
     setShowCreateModal(false)
+  }
+
+  // 도구 패널에서 노드 추가
+  function handleAddNodeFromToolbox(type: NodeCreationType) {
+    const center = reactFlowInstance.current
+      ? reactFlowInstance.current.screenToFlowPosition({
+          x: window.innerWidth / 2,
+          y: window.innerHeight / 2,
+        })
+      : { x: 300, y: 200 }
+
+    // 기존 노드와 겹치지 않게 약간 오프셋
+    const offset = nodes.length * 30
+    const position = { x: center.x + offset, y: center.y + offset }
+
+    if (type === "latentVariable") {
+      createLatentNode("새 잠재변수", "blue", position, `manual_${nodeIdCounter + 1}`, 0)
+    } else if (type === "observedVariable") {
+      createObservedNode("새 관측변수", position)
+    } else if (type === "moderator") {
+      createModeratorNode("조절변수", position)
+    }
+  }
+
+  // 템플릿 적용
+  function handleApplyTemplate(template: TemplateConfig) {
+    // 기존 노드/엣지 클리어
+    setNodes([])
+    setEdges([])
+
+    const nodeIds: string[] = []
+
+    // 노드 생성
+    const newNodes: Node[] = template.nodes.map((tn) => {
+      const id = `node_${++nodeIdCounter}`
+      nodeIds.push(id)
+
+      if (tn.type === "moderator") {
+        return {
+          id,
+          type: "moderator",
+          position: tn.position,
+          data: {
+            label: tn.label,
+            variableId: `tpl_${nodeIdCounter}`,
+            itemCount: 0,
+            alpha: null,
+          } satisfies ModeratorNodeData,
+        }
+      }
+
+      if (tn.type === "observedVariable") {
+        return {
+          id,
+          type: "observedVariable",
+          position: tn.position,
+          data: { label: tn.label, columnName: tn.label },
+        }
+      }
+
+      return {
+        id,
+        type: "latentVariable",
+        position: tn.position,
+        data: {
+          label: tn.label,
+          color: ROLE_COLOR[tn.role],
+          itemCount: 0,
+          alpha: null,
+          ave: null,
+          cr: null,
+          variableId: `tpl_${nodeIdCounter}`,
+        } satisfies LatentVariableNodeData,
+      }
+    })
+
+    // 엣지 생성
+    const newEdges: Edge[] = template.edges.map((te, idx) => {
+      const isModeration = te.type === "moderation"
+      return {
+        id: `edge_tpl_${idx}`,
+        source: nodeIds[te.sourceIdx],
+        target: nodeIds[te.targetIdx],
+        type: isModeration ? "moderation" : "stat",
+        markerEnd: isModeration
+          ? undefined
+          : { type: MarkerType.ArrowClosed, width: 16, height: 16 },
+        data: isModeration
+          ? { isModeration: true }
+          : ({ analyzed: false } satisfies StatEdgeData),
+      }
+    })
+
+    setNodes(newNodes)
+    setEdges(newEdges)
+    storeSetNodes(newNodes)
+    storeSetEdges(newEdges)
+  }
+
+  // 역할 변경
+  function handleSetRole(nodeId: string, role: NodeRole) {
+    setNodes((nds) => {
+      const updated = nds.map((n) => {
+        if (n.id !== nodeId) return n
+
+        // 조절변수 역할로 변경 시 노드 타입도 변경
+        if (role === "moderator" && n.type !== "moderator") {
+          return {
+            ...n,
+            type: "moderator",
+            data: {
+              label: (n.data as LatentVariableNodeData).label ?? "조절변수",
+              variableId: (n.data as LatentVariableNodeData).variableId ?? `mod_${nodeIdCounter}`,
+              itemCount: (n.data as LatentVariableNodeData).itemCount ?? 0,
+              alpha: null,
+            } satisfies ModeratorNodeData,
+          }
+        }
+
+        // 조절변수에서 다른 역할로 변경 시 잠재변수 타입으로 복원
+        if (role !== "moderator" && n.type === "moderator") {
+          return {
+            ...n,
+            type: "latentVariable",
+            data: {
+              label: (n.data as ModeratorNodeData).label ?? "잠재변수",
+              color: ROLE_COLOR[role],
+              itemCount: (n.data as ModeratorNodeData).itemCount ?? 0,
+              alpha: null,
+              ave: null,
+              cr: null,
+              variableId: (n.data as ModeratorNodeData).variableId ?? `manual_${nodeIdCounter}`,
+            } satisfies LatentVariableNodeData,
+          }
+        }
+
+        // 잠재변수 내 색상만 변경
+        if (n.type === "latentVariable") {
+          return {
+            ...n,
+            data: {
+              ...(n.data as LatentVariableNodeData),
+              color: ROLE_COLOR[role],
+            },
+          }
+        }
+
+        return n
+      })
+      storeSetNodes(updated)
+      return updated
+    })
+  }
+
+  // 노드 삭제
+  function handleDeleteNode(nodeId: string) {
+    setNodes((nds) => {
+      const updated = nds.filter((n) => n.id !== nodeId)
+      storeSetNodes(updated)
+      return updated
+    })
+    setEdges((eds) => {
+      const updated = eds.filter((e) => e.source !== nodeId && e.target !== nodeId)
+      storeSetEdges(updated)
+      return updated
+    })
+    if (selectedNode?.id === nodeId) setSelectedNode(null)
+  }
+
+  // 현재 노드의 역할 추정
+  function getNodeRole(nodeId: string): NodeRole | null {
+    const node = nodes.find((n) => n.id === nodeId)
+    if (!node) return null
+    if (node.type === "moderator") return "moderator"
+    if (node.type === "latentVariable") {
+      const color = (node.data as LatentVariableNodeData).color
+      const colorToRole: Record<string, NodeRole> = {
+        blue: "independent",
+        yellow: "mediator",
+        purple: "moderator",
+        green: "dependent",
+      }
+      return colorToRole[color] ?? null
+    }
+    return null
   }
 
   const dragDataRef = useRef<{
@@ -270,8 +546,14 @@ export default function ModelCanvas() {
       const updated = eds.map((e) => {
         if (e.type === "moderation") return e
         const path = demoResult.paths?.find((p) => {
-          const srcLabel = (nodes.find((n) => n.id === e.source)?.data as LatentVariableNodeData)?.label
-          const tgtLabel = (nodes.find((n) => n.id === e.target)?.data as LatentVariableNodeData)?.label
+          const srcNode = nodes.find((n) => n.id === e.source)
+          const tgtNode = nodes.find((n) => n.id === e.target)
+          const srcLabel = srcNode?.type === "moderator"
+            ? (srcNode.data as ModeratorNodeData).label
+            : (srcNode?.data as LatentVariableNodeData)?.label
+          const tgtLabel = tgtNode?.type === "moderator"
+            ? (tgtNode.data as ModeratorNodeData).label
+            : (tgtNode?.data as LatentVariableNodeData)?.label
           return p.from === srcLabel && p.to === tgtLabel
         })
         if (path) {
@@ -349,6 +631,8 @@ export default function ModelCanvas() {
         <ItemPanel
           onDragStart={handlePanelDragStart}
           nodeVariableIds={nodeVariableIds}
+          onAddNode={handleAddNodeFromToolbox}
+          onApplyTemplate={handleApplyTemplate}
         />
 
         <div className="relative flex-1">
@@ -365,6 +649,7 @@ export default function ModelCanvas() {
             onNodeClick={onNodeClick}
             onEdgeClick={onEdgeClick}
             onPaneClick={onPaneClick}
+            onNodeContextMenu={onNodeContextMenu}
             onDoubleClick={(event) => {
               onDoubleClick(event, { x: event.clientX, y: event.clientY })
             }}
@@ -387,6 +672,7 @@ export default function ModelCanvas() {
             <MiniMap
               position="bottom-right"
               nodeColor={(n) => {
+                if (n.type === "moderator") return "#fbbf24"
                 if (n.type === "latentVariable") {
                   const c = (n.data as LatentVariableNodeData).color
                   const map: Record<string, string> = {
@@ -402,6 +688,19 @@ export default function ModelCanvas() {
             />
             <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="#e2e8f0" />
           </ReactFlow>
+
+          {/* 노드 컨텍스트 메뉴 */}
+          {contextMenu && (
+            <NodeContextMenu
+              x={contextMenu.x}
+              y={contextMenu.y}
+              nodeId={contextMenu.nodeId}
+              currentRole={getNodeRole(contextMenu.nodeId)}
+              onSetRole={handleSetRole}
+              onDelete={handleDeleteNode}
+              onClose={() => setContextMenu(null)}
+            />
+          )}
 
           {/* 더블클릭 노드 생성 모달 */}
           {showCreateModal && (
@@ -507,8 +806,14 @@ function generateDemoResult(nodes: Node[], edges: Edge[]): AnalysisResultData {
   const paths: AnalysisResultData["paths"] = edges
     .filter((e) => e.type !== "moderation")
     .map((e) => {
-      const srcLabel = (nodes.find((n) => n.id === e.source)?.data as LatentVariableNodeData)?.label ?? e.source
-      const tgtLabel = (nodes.find((n) => n.id === e.target)?.data as LatentVariableNodeData)?.label ?? e.target
+      const srcNode = nodes.find((n) => n.id === e.source)
+      const tgtNode = nodes.find((n) => n.id === e.target)
+      const srcLabel = srcNode?.type === "moderator"
+        ? (srcNode.data as ModeratorNodeData).label
+        : (srcNode?.data as LatentVariableNodeData)?.label ?? e.source
+      const tgtLabel = tgtNode?.type === "moderator"
+        ? (tgtNode.data as ModeratorNodeData).label
+        : (tgtNode?.data as LatentVariableNodeData)?.label ?? e.target
       const beta = Math.round((Math.random() * 0.6 + 0.1) * 1000) / 1000
       const se = Math.round((Math.random() * 0.05 + 0.02) * 1000) / 1000
       const pValue = Math.random() < 0.7 ? Math.random() * 0.04 : Math.random() * 0.3 + 0.05
